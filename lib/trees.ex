@@ -2,8 +2,20 @@ defprotocol DecisionTree do
   @doc """
   Returns a Tree struct representing the decision tree.
   """
-  @spec tree(data :: list) :: TreeParameters.t()
-  def tree(data)
+  @spec trees(data :: any) :: [Tree.t()]
+  def trees(data)
+
+  @spec classes(data :: any) :: list
+  def classes(data)
+
+  @spec features(data :: any) :: list
+  def features(data)
+
+  @spec output_type(data :: any) :: :classification | :regression
+  def output_type(data)
+
+  @spec condition(data :: any) :: :gt | :lt | :ge | :le
+  def condition(data)
 end
 
 defmodule Mockingjay.Tree do
@@ -21,6 +33,16 @@ defmodule Mockingjay.Tree do
       - threshold: The threshold used to split the data (if it is not a leaf).
       - operator: The condition used to split the data (if it is not a leaf) Can be `:le`, `:lt`, `:ge`, `:gt`.
   """
+  @enforce_keys [:id, :value]
+  defstruct [:id, :left, :right, :value]
+
+  @typedoc "A simple binary tree implementation."
+  @type t() :: %__MODULE__{
+          id: pos_integer(),
+          left: __MODULE__.t() | nil,
+          right: __MODULE__.t() | nil,
+          value: any()
+        }
 
   # Credit to this SO answer: https://stackoverflow.com/questions/55327307/flatten-a-binary-tree-to-list-ordered
 
@@ -34,25 +56,25 @@ defmodule Mockingjay.Tree do
 
   def reduce_tree(root, acc, reducer) do
     :queue.new()
-    |> then(&:queue.in(root, &1))
+    |> :queue.snoc(root)
     |> process_queue(acc, reducer)
   end
 
   def process_queue(queue, acc, reducer) do
     case :queue.out(queue) do
+      {{:value, %{value: value, left: nil, right: nil}}, popped} ->
+        new_acc = reducer.(value, acc)
+        process_queue(popped, new_acc, reducer)
+
       {{:value, %{left: left, right: right, value: value}}, popped} ->
         new_acc = reducer.(value, acc)
 
         popped
-        |> then(&:queue.in(left, &1))
-        |> then(&:queue.in(right, &1))
+        |> :queue.snoc(left)
+        |> :queue.snoc(right)
         |> process_queue(new_acc, reducer)
 
-      {{:value, %{value: value}}, popped} ->
-        new_acc = reducer.(value, acc)
-        process_queue(popped, new_acc, reducer)
-
-      other ->
+      _other ->
         acc
     end
   end
@@ -72,5 +94,19 @@ defmodule Mockingjay.Tree do
       _ ->
         current_depth
     end
+  end
+
+  def get_decision_nodes(tree) do
+    bfs(tree)
+    |> Enum.filter(fn node ->
+      is_map(node)
+    end)
+  end
+
+  def get_leaf_nodes(tree) do
+    bfs(tree)
+    |> Enum.filter(fn node ->
+      not is_map(node)
+    end)
   end
 end

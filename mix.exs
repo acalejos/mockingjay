@@ -21,8 +21,7 @@ defmodule Mockingjay.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:exla, "~> 0.3.0"},
-      {:nx, "~> 0.3.0"}
+      {:nx, "~> 0.5"}
     ]
   end
 end
