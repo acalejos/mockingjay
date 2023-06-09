@@ -29,12 +29,12 @@ defmodule TreeTests do
   end
 
   test "bfs", context do
-    assert Tree.bfs(context.tree) == [
-             %{condition: :gt, feature: "x3", threshold: 3},
-             %{condition: :gt, feature: "x2", threshold: 5},
-             %{condition: :lt, feature: "x1", threshold: 1.2},
+    assert Tree.bfs(context.tree) |> Enum.map(& &1.value) == [
+             %{condition: :gt, feature: 2, threshold: 3},
+             %{condition: :gt, feature: 2, threshold: 5},
+             %{condition: :lt, feature: 2, threshold: 1.2},
              10,
-             %{condition: :gt, feature: "x4", threshold: 3},
+             %{condition: :gt, feature: 4, threshold: 3},
              30,
              20,
              40,
@@ -46,16 +46,16 @@ defmodule TreeTests do
     assert Tree.depth(context.tree) == 4
   end
 
-  test "get decision nodes", context do
-    assert Tree.get_decision_nodes(context.tree) == [
-             %{condition: :gt, feature: "x3", threshold: 3},
-             %{condition: :gt, feature: "x2", threshold: 5},
-             %{condition: :lt, feature: "x1", threshold: 1.2},
-             %{condition: :gt, feature: "x4", threshold: 3}
+  test "get decision values", context do
+    assert Tree.get_decision_values(context.tree) == [
+             %{condition: :gt, feature: 3, threshold: 3},
+             %{condition: :gt, feature: 2, threshold: 5},
+             %{condition: :lt, feature: 1, threshold: 1.2},
+             %{condition: :gt, feature: 4, threshold: 3}
            ]
   end
 
-  test "get leaf nodes", context do
-    assert Tree.get_leaf_nodes(context.tree) == [10, 30, 20, 40, 50]
+  test "get leaf values", context do
+    assert Tree.get_leaf_values(context.tree) == [10, 30, 20, 40, 50]
   end
 end

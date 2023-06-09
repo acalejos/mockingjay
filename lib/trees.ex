@@ -5,11 +5,11 @@ defprotocol DecisionTree do
   @spec trees(data :: any) :: [Tree.t()]
   def trees(data)
 
-  @spec classes(data :: any) :: list
-  def classes(data)
+  @spec num_classes(data :: any) :: pos_integer()
+  def num_classes(data)
 
-  @spec features(data :: any) :: list
-  def features(data)
+  @spec num_features(data :: any) :: pos_integer()
+  def num_features(data)
 
   @spec output_type(data :: any) :: :classification | :regression
   def output_type(data)
@@ -33,6 +33,7 @@ defmodule Mockingjay.Tree do
       - threshold: The threshold used to split the data (if it is not a leaf).
       - operator: The condition used to split the data (if it is not a leaf) Can be `:le`, `:lt`, `:ge`, `:gt`.
   """
+  alias Mockingjay.Tree
   @enforce_keys [:id, :value]
   defstruct [:id, :left, :right, :value]
 
@@ -62,12 +63,12 @@ defmodule Mockingjay.Tree do
 
   def process_queue(queue, acc, reducer) do
     case :queue.out(queue) do
-      {{:value, %{value: value, left: nil, right: nil}}, popped} ->
-        new_acc = reducer.(value, acc)
+      {{:value, %{left: nil, right: nil} = node}, popped} ->
+        new_acc = reducer.(node, acc)
         process_queue(popped, new_acc, reducer)
 
-      {{:value, %{left: left, right: right, value: value}}, popped} ->
-        new_acc = reducer.(value, acc)
+      {{:value, %{left: left, right: right} = node}, popped} ->
+        new_acc = reducer.(node, acc)
 
         popped
         |> :queue.snoc(left)
@@ -99,14 +100,52 @@ defmodule Mockingjay.Tree do
   def get_decision_nodes(tree) do
     bfs(tree)
     |> Enum.filter(fn node ->
-      is_map(node)
+      is_map(node.value)
     end)
   end
 
   def get_leaf_nodes(tree) do
+    # Unlilke get_decision_nodes, this function returns the leaf nodes in DFS order.
+    case tree do
+      %{left: nil, right: nil} ->
+        [tree]
+
+      %{left: left, right: right} ->
+        get_leaf_nodes(left) ++ get_leaf_nodes(right)
+    end
+  end
+
+  def get_leaf_values(tree) do
+    get_leaf_nodes(tree)
+    |> Enum.map(& &1.value)
+  end
+
+  def get_decision_values(tree) do
     bfs(tree)
     |> Enum.filter(fn node ->
-      not is_map(node)
+      is_map(node.value)
     end)
+    |> Enum.map(& &1.value)
+  end
+
+  def is_child(tree, child_id) do
+    case tree do
+      nil ->
+        false
+
+      %Tree{id: id, left: nil, right: nil} ->
+        if id == child_id do
+          true
+        else
+          false
+        end
+
+      %Tree{id: id, left: left, right: right} ->
+        if id == child_id do
+          true
+        else
+          is_child(left, child_id) or is_child(right, child_id)
+        end
+    end
   end
 end
