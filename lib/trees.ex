@@ -37,6 +37,48 @@ defmodule Mockingjay.Tree do
   @enforce_keys [:id, :value]
   defstruct [:id, :left, :right, :value]
 
+  def from_map(%{} = map) do
+    case map do
+      %{left: nil, right: nil, value: value} when is_number(value) ->
+        %Tree{
+          id: make_ref(),
+          left: nil,
+          right: nil,
+          value: value
+        }
+
+      %{value: value} when is_number(value) ->
+        %Tree{
+          id: make_ref(),
+          left: nil,
+          right: nil,
+          value: value
+        }
+
+      %{left: nil, right: nil, value: value} ->
+        raise ArgumentError, "Leaf nodes must have a numeric value. Got: #{inspect(value)}"
+
+      %{left: left, right: right, value: %{threshold: threshold, feature: feature}}
+      when is_number(threshold) and is_number(feature) ->
+        %Tree{
+          id: make_ref(),
+          left: Tree.from_map(left),
+          right: Tree.from_map(right),
+          value: %{threshold: threshold, feature: feature}
+        }
+
+      %{left: left, right: right, value: %{threshold: threshold, feature: feature}} ->
+        raise ArgumentError,
+              "Non-leaf nodes must have a numeric threshold and feature. Got: #{inspect(map)}"
+
+      %{value: value} ->
+        raise ArgumentError, "Leaf nodes must have a numeric value. Got: #{inspect(value)}"
+
+      _ ->
+        raise ArgumentError, "Invalid tree map: #{inspect(map)}"
+    end
+  end
+
   @typedoc "A simple binary tree implementation."
   @type t() :: %__MODULE__{
           id: pos_integer(),
@@ -134,18 +176,10 @@ defmodule Mockingjay.Tree do
         false
 
       %Tree{id: id, left: nil, right: nil} ->
-        if id == child_id do
-          true
-        else
-          false
-        end
+        id == child_id
 
       %Tree{id: id, left: left, right: right} ->
-        if id == child_id do
-          true
-        else
-          is_child(left, child_id) or is_child(right, child_id)
-        end
+        id == child_id or is_child(left, child_id) or is_child(right, child_id)
     end
   end
 end
