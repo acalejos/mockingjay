@@ -1,21 +1,24 @@
 # Mockingjay
 
-**TODO: Add description**
+Implementation of Microsoft's [Hummingbird](https://github.com/microsoft/hummingbird) library for converting trained Decision Tree
+models into tensor computations. 
+
+## How to Use
+
+Implement the `DecisionTree` protocol for any data source you would like to compile. Then you can use `Mockingjay.convert/1`
+to generate an `Nx.Defn` prediction function that makes inferences. The output of `convert` will be a function with the signature
+`fn x -> predict(x)`. The three strategies are GEMM, TreeTraversal, and PerfectTree traversal. You can specify the strategy using the
+`:strategy` option in `convert` or use a heuristic strategy by default. The heuristic used is generally:
+* GEMM: Shallow Trees (<= 3 on CPU, <= 10 on GPU)
+* PerfectTreeTraversal: Tall trees where depth <= 10 (TODO)
+* TreeTraversal: Tall trees unfit for PTT (depth > 10) (TODO)
 
 ## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `mockingjay` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:mockingjay, "~> 0.1.0"}
+    {:mockingjay, github: "acalejos/mockingjay", branch: "main"}
   ]
 end
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/mockingjay>.
-
