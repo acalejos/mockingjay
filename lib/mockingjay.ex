@@ -7,10 +7,27 @@ defmodule Mockingjay do
     end
 
     case opts[:strategy] do
-      :gemm -> Mockingjay.Strategies.Gemm.compile(model)
-      :tree_traversal -> raise NotImplementedError
-      :ptt -> raise NotImplementedError
-      :auto -> Mockingjay.Strategies.Gemm.compile(model)
+      :gemm ->
+        Mockingjay.Strategies.Gemm.compile(model)
+
+      :tree_traversal ->
+        raise NotImplementedError,
+              "TreeTraversal strategy not implemented yet -- use :gemm instead"
+
+      :ptt ->
+        raise NotImplementedError, "PTT strategy not implemented yet -- use :gemm instead"
+
+      :auto ->
+        Mockingjay.Strategies.GEMM.compile(model)
     end
+  end
+end
+
+defmodule NotImplementedError do
+  defexception [:message]
+
+  @impl true
+  def exception(msg) do
+    %NotImplementedError{message: msg}
   end
 end

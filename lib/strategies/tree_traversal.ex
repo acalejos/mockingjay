@@ -1,4 +1,6 @@
 defmodule(Mockingjay.TreeTraversal) do
+  import Nx.Defn
+  alias Mockingjay.Tree
   # def forward(X, ) do
 
   # end
