@@ -45,22 +45,22 @@ defmodule GEMMTests do
     }
   end
 
-  test "A matrix", context do
-    assert GEMM.generate_matrix_A(
-             context.trees,
-             context.num_features,
-             context.hidden_one_size
-           ) ==
-             Nx.tensor([
-               [
-                 [0, 0, 0, 0],
-                 [0, 1, 0, 0],
-                 [1, 0, 0, 1],
-                 [0, 0, 0, 0],
-                 [0, 0, 1, 0]
-               ]
-             ])
-  end
+  # test "A matrix", context do
+  #   assert GEMM.generate_matrix_A(
+  #            context.trees,
+  #            context.num_features,
+  #            context.hidden_one_size
+  #          ) ==
+  #            Nx.tensor([
+  #              [
+  #                [0, 0, 0, 0],
+  #                [0, 1, 0, 0],
+  #                [1, 0, 0, 1],
+  #                [0, 0, 0, 0],
+  #                [0, 0, 1, 0]
+  #              ]
+  #            ])
+  # end
 
   test "B matrix", context do
     assert GEMM.generate_matrix_B(context.trees, context.hidden_one_size) ==

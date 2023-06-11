@@ -8,7 +8,7 @@ defmodule Mockingjay do
 
     case opts[:strategy] do
       :gemm ->
-        Mockingjay.Strategies.Gemm.compile(model)
+        Mockingjay.Strategies.GEMM.compile(model)
 
       :tree_traversal ->
         raise NotImplementedError,

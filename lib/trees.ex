@@ -67,7 +67,7 @@ defmodule Mockingjay.Tree do
           value: %{threshold: threshold, feature: feature}
         }
 
-      %{left:_ left, right: _right, value: %{threshold: _threshold, feature: _feature}} ->
+      %{left: _left, right: _right, value: %{threshold: _threshold, feature: _feature}} ->
         raise ArgumentError,
               "Non-leaf nodes must have a numeric threshold and feature. Got: #{inspect(map)}"
 
