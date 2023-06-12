@@ -5,6 +5,7 @@ defmodule Mockingjay.Strategies.GEMM do
   alias Mockingjay.DecisionTree
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
+  # TO-DO: make TCOptimizable
   defp get_leaf_left_depths(root) do
     _get_leaf_left_depths(root, 0)
   end
@@ -48,50 +49,35 @@ defmodule Mockingjay.Strategies.GEMM do
 
   # TODO The generation of matrices can likely be done in 1 pass rather than a different pass for each
 
-  def generate_matrix_A(trees, num_features, hidden_one_size) do
+  def generate_matrices_AB(trees, num_features, hidden_one_size) do
     n_trees = length(trees)
 
-    indices =
-      Enum.flat_map(
-        Enum.with_index(trees),
-        fn {tree, tree_index} ->
-          Enum.with_index(Tree.get_decision_values(tree), fn node, node_index ->
-            [tree_index, node_index, node.feature]
-          end)
-        end
-      )
-      |> Nx.tensor()
-
-    Nx.indexed_put(
-      Nx.broadcast(0, {n_trees, hidden_one_size, num_features}),
-      indices,
-      Nx.broadcast(1, {indices.shape |> elem(0)})
-    )
-    |> Nx.reshape({:auto, num_features})
-  end
-
-  def generate_matrix_B(trees, hidden_one_size) do
-    n_trees = length(trees)
-
-    Nx.indexed_put(
-      Nx.broadcast(0, {n_trees, hidden_one_size}),
-      Nx.tensor(
-        Enum.flat_map(
-          Enum.with_index(trees),
-          fn {tree, index} ->
-            Enum.with_index(Tree.get_decision_nodes(tree), fn _node, node_index ->
-              [index, node_index]
-            end)
-          end
-        )
-      ),
-      Nx.tensor(
-        Enum.flat_map(trees, fn tree ->
-          Enum.map(Tree.get_decision_values(tree), fn node -> node.threshold end)
+    {indices_list, updates_list} =
+      trees
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {tree, tree_index} ->
+        Enum.with_index(Tree.get_decision_values(tree), fn value, node_index ->
+          {[tree_index, node_index, value.feature], value.threshold}
         end)
-      )
-    )
-    |> Nx.reshape({:auto, 1})
+      end)
+      |> Enum.unzip()
+
+    a_indices = Nx.tensor(indices_list)
+    b_indices = a_indices[[.., 0..1]]
+
+    a_updates = Nx.broadcast(1, {Nx.axis_size(a_indices, 0)})
+    b_updates = Nx.tensor(updates_list)
+
+    a_zeros = Nx.broadcast(0, {n_trees, hidden_one_size, num_features})
+    b_zeros = Nx.slice_along_axis(a_zeros, 0, 1, axis: -1) |> Nx.squeeze(axes: [-1])
+
+    a = Nx.indexed_put(a_zeros, a_indices, a_updates)
+
+    dbg({a_zeros, a_indices, a_updates, b_zeros, b_indices, b_updates})
+    b = Nx.indexed_put(b_zeros, b_indices, b_updates)
+
+    num_rows = n_trees * hidden_one_size
+    {Nx.reshape(a, {num_rows, num_features}), Nx.reshape(b, {num_rows, 1})}
   end
 
   def generate_matrix_C(trees, hidden_one_size, hidden_two_size) do
@@ -264,17 +250,9 @@ defmodule Mockingjay.Strategies.GEMM do
     #   )
 
     n_trees = length(trees)
-    mat_A = generate_matrix_A(trees, num_features, hidden_one_size)
-    # mat_A =
-    #   Nx.indexed_put(
-    #     Nx.broadcast(0, {n_trees, hidden_one_size, num_features}),
-    #     A_indices,
-    #     Nx.broadcast(1, {Nx.shape(A_indices) |> elem(0)})
-    #   )
-    #   |> Nx.reshape({:auto, num_features})
 
+    {mat_A, mat_B} = generate_matrices_AB(trees, num_features, hidden_one_size)
     IO.puts("mat_A: #{inspect(mat_A)}")
-    mat_B = generate_matrix_B(trees, hidden_one_size)
     IO.puts("mat_B: #{inspect(mat_B)}")
     mat_C = generate_matrix_C(trees, hidden_one_size, hidden_two_size)
     IO.puts("mat_C: #{inspect(mat_C)}")

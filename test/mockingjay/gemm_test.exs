@@ -45,31 +45,32 @@ defmodule Mockingjay.GEMMTest do
     }
   end
 
-  # test "A matrix", context do
-  #   assert GEMM.generate_matrix_A(
-  #            context.trees,
-  #            context.num_features,
-  #            context.hidden_one_size
-  #          ) ==
-  #            Nx.tensor([
-  #              [
-  #                [0, 0, 0, 0],
-  #                [0, 1, 0, 0],
-  #                [1, 0, 0, 1],
-  #                [0, 0, 0, 0],
-  #                [0, 0, 1, 0]
-  #              ]
-  #            ])
-  # end
+  test "A and B matrices", context do
+    expected_a =
+      Nx.tensor([
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 1],
+        [0, 0, 1, 0, 0]
+      ])
 
-  test "B matrix", context do
-    assert GEMM.generate_matrix_B(context.trees, context.hidden_one_size) ==
-             Nx.tensor([
-               [0.5],
-               [2.0],
-               [5.5],
-               [2.4000000953674316]
-             ])
+    expected_b =
+      Nx.tensor([
+        [0.5],
+        [2.0],
+        [5.5],
+        [2.4000000953674316]
+      ])
+
+    assert {a, b} =
+             GEMM.generate_matrices_AB(
+               context.trees,
+               context.num_features,
+               context.hidden_one_size
+             )
+
+    assert a == expected_a
+    assert b == expected_b
   end
 
   test "C matrix", context do
