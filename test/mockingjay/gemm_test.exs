@@ -110,7 +110,7 @@ defmodule Mockingjay.GEMMTest do
              ])
   end
 
-  @tag :skip
+  # @tag :skip
   test "compile", context do
     assert is_function(GEMM.compile(context.trees), 1)
   end
