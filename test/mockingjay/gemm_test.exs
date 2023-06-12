@@ -86,8 +86,13 @@ defmodule Mockingjay.GEMMTest do
              ])
   end
 
-  test "D matrix", context do
-    assert GEMM.generate_matrix_D(context.trees, context.hidden_two_size) ==
+  test "D and E matrices", context do
+    hidden_three_size = context.num_classes
+
+    assert {d, e} =
+             GEMM.generate_matrices_DE(context.trees, context.hidden_two_size, hidden_three_size)
+
+    assert d ==
              Nx.tensor([
                [2],
                [1],
@@ -95,17 +100,8 @@ defmodule Mockingjay.GEMMTest do
                [1],
                [0]
              ])
-  end
 
-  @tag :skip
-  test "E matrix", context do
-    hidden_three_size = context.num_classes
-
-    assert GEMM.generate_matrix_E(
-             context.trees,
-             context.hidden_two_size,
-             hidden_three_size
-           ) ==
+    assert e ==
              Nx.tensor([
                [
                  [1, 0],
