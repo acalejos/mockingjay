@@ -19,20 +19,20 @@ defmodule Mockingjay.Strategies.GEMM do
     end
   end
 
-  def forward(
-        x,
-        hidden_one_size,
-        hidden_two_size,
-        # TO-DO: do we really need this?
-        # hidden_three_size,
-        mat_A,
-        mat_B,
-        mat_C,
-        mat_D,
-        mat_E,
-        n_trees,
-        condition
-      ) do
+  deftransform forward(
+                 x,
+                 hidden_one_size,
+                 hidden_two_size,
+                 # TO-DO: do we really need this?
+                 # hidden_three_size,
+                 mat_A,
+                 mat_B,
+                 mat_C,
+                 mat_D,
+                 mat_E,
+                 n_trees,
+                 condition
+               ) do
     mat_A
     |> Nx.dot([1], x, [0])
     |> condition.(mat_B)
@@ -42,8 +42,8 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.equal(mat_D)
     |> Nx.reshape({n_trees, hidden_two_size, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
-
     # |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    |> Nx.squeeze()
   end
 
   # TODO The generation of matrices can likely be done in 1 pass rather than a different pass for each
