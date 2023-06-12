@@ -156,10 +156,10 @@ defmodule Mockingjay.Tree do
   defp do_get_leaf_nodes(tree, nodes) do
     # Unlilke get_decision_nodes, this function returns the leaf nodes in DFS order.
     case tree do
-      %{left: nil, right: nil} ->
+      %__MODULE__{left: nil, right: nil} ->
         [tree | nodes]
 
-      %{left: left, right: right} ->
+      %__MODULE__{left: left, right: right} ->
         left
         |> do_get_leaf_nodes(nodes)
         |> then(&do_get_leaf_nodes(right, &1))

@@ -1,6 +1,8 @@
 defmodule Mockingjay.Strategies.GEMM do
   import Nx.Defn
+
   alias Mockingjay.Tree
+  alias Mockingjay.DecisionTree
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
   defp get_leaf_left_depths(root) do
