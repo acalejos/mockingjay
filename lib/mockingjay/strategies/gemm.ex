@@ -146,10 +146,12 @@ defmodule Mockingjay.Strategies.GEMM do
 
     # TODO : Infer this from shape of leaf node values
     n_classes =
-      if DecisionTree.output_type(ensemble) == :classification do
-        DecisionTree.num_classes(ensemble)
-      else
-        1
+      case DecisionTree.output_type(ensemble) do
+        :classification ->
+          DecisionTree.num_classes(ensemble)
+
+        :regression ->
+          1
       end
 
     {hidden_one_size, hidden_two_size} =

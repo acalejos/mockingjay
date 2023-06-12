@@ -115,7 +115,7 @@ defmodule Mockingjay.GEMMTest do
       trees: context.trees,
       num_classes: 1,
       num_features: 5,
-      output_type: :f32,
+      output_type: :classification,
       condition: :lt
     }
 
