@@ -1,4 +1,4 @@
-defmodule GEMMTests do
+defmodule Mockingjay.GEMMTest do
   alias Mockingjay.Tree
   alias Mockingjay.Strategies.GEMM
   use ExUnit.Case, async: true

@@ -1,6 +1,6 @@
-defmodule TreeTests do
-  alias Mockingjay.Tree
+defmodule Mockingjay.TreeTest do
   use ExUnit.Case, async: true
+  alias Mockingjay.Tree
 
   setup do
     %{
@@ -85,6 +85,7 @@ defmodule TreeTests do
   end
 
   test "get leaf values", context do
+    dbg(context.tree)
     assert Tree.get_leaf_values(context.tree) == [10, 40, 50, 30, 20]
   end
 end
