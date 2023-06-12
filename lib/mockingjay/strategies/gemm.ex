@@ -117,7 +117,7 @@ defmodule Mockingjay.Strategies.GEMM do
           if hidden_three_size == 1 do
             {[index, 0, node_index], node.value}
           else
-            {[index, node_index, node.value], 1}
+            {[index, node.value, node_index], 1}
           end
         end)
       end)
@@ -125,12 +125,7 @@ defmodule Mockingjay.Strategies.GEMM do
 
     e_indices = Nx.tensor(indices_list)
 
-    d_indices =
-      if hidden_three_size == 1 do
-        Nx.take(e_indices, Nx.tensor([0, 2]), axis: 1)
-      else
-        Nx.take(e_indices, Nx.tensor([0, 1]), axis: 1)
-      end
+    d_indices = Nx.take(e_indices, Nx.tensor([0, 2]), axis: 1)
 
     d_updates = trees |> Enum.flat_map(&get_leaf_left_depths/1) |> Nx.tensor()
     d_zero = Nx.broadcast(0, {n_trees, hidden_two_size})
@@ -138,8 +133,6 @@ defmodule Mockingjay.Strategies.GEMM do
 
     e_updates = Nx.tensor(updates_list)
     e_zero = Nx.broadcast(0, {n_trees, hidden_three_size, hidden_two_size})
-
-    dbg({e_zero, e_indices, e_updates})
 
     e = Nx.indexed_put(e_zero, e_indices, e_updates)
 
