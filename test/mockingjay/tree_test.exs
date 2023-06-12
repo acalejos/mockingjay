@@ -85,7 +85,6 @@ defmodule Mockingjay.TreeTest do
   end
 
   test "get leaf values", context do
-    dbg(context.tree)
     assert Tree.get_leaf_values(context.tree) == [10, 40, 50, 30, 20]
   end
 end
