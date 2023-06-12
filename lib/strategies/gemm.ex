@@ -1,6 +1,6 @@
 defmodule Mockingjay.Strategies.GEMM do
   import Nx.Defn
-  alias Mockingjay.Tree
+  alias Mockingjay.{Tree, DecisionTree}
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
   defp get_leaf_left_depths(root) do
@@ -17,22 +17,21 @@ defmodule Mockingjay.Strategies.GEMM do
     end
   end
 
-  def forward(
-        x,
-        hidden_one_size,
-        hidden_two_size,
-        hidden_three_size,
-        mat_A,
-        mat_B,
-        mat_C,
-        mat_D,
-        mat_E,
-        n_trees,
-        condition
-      ) do
+  deftransform forward(
+                 x,
+                 hidden_one_size,
+                 hidden_two_size,
+                 hidden_three_size,
+                 mat_A,
+                 mat_B,
+                 mat_C,
+                 mat_D,
+                 mat_E,
+                 n_trees,
+                 condition
+               ) do
     x
-    |> Nx.transpose()
-    |> then(&Nx.dot(mat_A, &1))
+    |> then(&Nx.dot(mat_A, [1], &1, [1]))
     |> condition.(mat_B)
     |> Nx.reshape({n_trees, hidden_one_size, :auto})
     |> then(&Nx.dot(mat_C, [2], [0], &1, [1], [0]))
@@ -41,6 +40,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.reshape({n_trees, hidden_two_size, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
     |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    |> Nx.squeeze()
   end
 
   # TODO The generation of matrices can likely be done in 1 pass rather than a different pass for each

@@ -1,4 +1,4 @@
-defprotocol DecisionTree do
+defprotocol Mockingjay.DecisionTree do
   @doc """
   Returns a Tree struct representing the decision tree.
   """
