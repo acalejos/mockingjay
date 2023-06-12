@@ -110,8 +110,16 @@ defmodule Mockingjay.GEMMTest do
              ])
   end
 
-  # @tag :skip
   test "compile", context do
-    assert is_function(GEMM.compile(context.trees), 1)
+    model = %Mockingjay.Model{
+      trees: context.trees,
+      num_classes: 1,
+      num_features: 5,
+      output_type: :f32,
+      condition: :lt
+    }
+
+    f = GEMM.compile(model)
+    assert is_function(f, 1)
   end
 end

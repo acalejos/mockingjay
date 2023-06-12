@@ -144,13 +144,13 @@ defmodule Mockingjay.Strategies.GEMM do
     num_features = DecisionTree.num_features(ensemble)
     condition = DecisionTree.condition(ensemble)
 
-    n_classes = 1
     # TODO : Infer this from shape of leaf node values
-    # if DecisionTree.output_type(ensemble) == :classification do
-    #   DecisionTree.num_classes(ensemble)
-    # else
-    #   1
-    # end
+    n_classes =
+      if DecisionTree.output_type(ensemble) == :classification do
+        DecisionTree.num_classes(ensemble)
+      else
+        1
+      end
 
     {hidden_one_size, hidden_two_size} =
       Enum.reduce(trees, {0, 0}, fn tree, {h1, h2} ->
@@ -160,69 +160,11 @@ defmodule Mockingjay.Strategies.GEMM do
 
     hidden_three_size = n_classes
 
-    # TODO
-    # Setup as many matrices as possible in one pass
-    # {a_indices, {b_indices, c_updates}, d_matrix, {d_indices, d_updates}, {e_indices, e_updates}} =
-    #   Enum.reduce(
-    #     Enum.with_index(trees),
-    #     {[], {[], []}, [], {[], []}, {[], []}},
-    #     fn {tree, tree_index}, {ai, {bi, bu}, c, {di, du}, {ei, eu}} ->
-    #       du = du ++ get_leaf_left_depths(tree)
-
-    #       Enum.reduce(Enum.with_index(Tree.get_decision_nodes(tree)), fn {internal_node,
-    #                                                                       internal_index} ->
-    #         ai = ai ++ [tree_index, internal_index, internal_node.value.feature]
-    #         bi = bi ++ [tree_index, internal_index]
-    #         bu = bu ++ [internal_node.value.threshold]
-
-    #         Enum.reduce(Tree.get_leaf_nodes(tree), fn leaf_node, leaf_index ->
-    #           truth_value =
-    #             cond do
-    #               Tree.is_child(internal_node.left, leaf_node.id) -> 1
-    #               Tree.is_child(internal_node.right, leaf_node.id) -> -1
-    #               true -> 0
-    #             end
-
-    #           c = c ++ [tree_index, leaf_index, internal_index, truth_value]
-    #           di = di ++ [tree_index, leaf_index]
-
-    #           ei =
-    #             ei ++
-    #               if hidden_three_size == 1 do
-    #                 [tree_index, 0, leaf_index]
-    #               else
-    #                 [tree_index, leaf_index, leaf_node.value]
-    #                 eu = eu ++ []
-    #               end
-
-    #           eu =
-    #             eu ++
-    #               if hidden_three_size == 1 do
-    #                 [leaf_node.value]
-    #               else
-    #                 [1]
-    #               end
-
-    #           {ai, {bi, bu}, c, {di, du}, {ei, eu}}
-    #         end)
-    #       end)
-    #     end
-    #   )
-
     n_trees = length(trees)
 
     {mat_A, mat_B} = generate_matrices_AB(trees, num_features, hidden_one_size)
-    # IO.puts("mat_A: #{inspect(mat_A)}")
-    # IO.puts("mat_B: #{inspect(mat_B)}")
     mat_C = generate_matrix_C(trees, hidden_one_size, hidden_two_size)
-    # IO.puts("mat_C: #{inspect(mat_C)}")
     {mat_D, mat_E} = generate_matrices_DE(trees, hidden_two_size, hidden_three_size)
-    # IO.puts("mat_D: #{inspect(mat_D)}")
-    # IO.puts("mat_E: #{inspect(mat_E)}")
-    # IO.puts("n_trees: #{inspect(n_trees)}")
-    # IO.puts("hidden_one_size: #{inspect(hidden_one_size)}")
-    # IO.puts("hidden_two_size: #{inspect(hidden_two_size)}")
-    # IO.puts("hidden_three_size: #{inspect(hidden_three_size)}")
 
     &forward(
       &1,
