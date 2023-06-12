@@ -20,22 +20,16 @@ defmodule Mockingjay.Strategies.GEMM do
     end
   end
 
-  deftransform forward(
-                 x,
-                 hidden_one_size,
-                 hidden_two_size,
-                 # TO-DO: do we really need this?
-                 # hidden_three_size,
-                 mat_A,
-                 mat_B,
-                 mat_C,
-                 mat_D,
-                 mat_E,
-                 n_trees,
-                 condition
-               ) do
+  defn forward(x, mat_A, mat_B, mat_C, mat_D, mat_E, condition, opts \\ []) do
+    opts = keyword!(opts, [:n_trees, :hidden_one_size, :hidden_two_size, :hidden_three_size])
+
+    n_trees = opts[:n_trees]
+    hidden_one_size = opts[:hidden_one_size]
+    hidden_two_size = opts[:hidden_two_size]
+    hidden_three_size = opts[:hidden_three_size]
+
     mat_A
-    |> Nx.dot([1], x, [0])
+    |> Nx.dot([1], x, [1])
     |> condition.(mat_B)
     |> Nx.reshape({n_trees, hidden_one_size, :auto})
     |> then(&Nx.dot(mat_C, [2], [0], &1, [1], [0]))
@@ -43,7 +37,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.equal(mat_D)
     |> Nx.reshape({n_trees, hidden_two_size, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
-    # |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    |> Nx.reshape({n_trees, hidden_three_size, :auto})
     |> Nx.squeeze()
   end
 
@@ -179,7 +173,7 @@ defmodule Mockingjay.Strategies.GEMM do
     )
   end
 
-  def compile(ensemble, opts \\ []) do
+  def compile(ensemble, _opts \\ []) do
     trees = DecisionTree.trees(ensemble)
     num_features = DecisionTree.num_features(ensemble)
     condition = DecisionTree.condition(ensemble)
@@ -252,31 +246,31 @@ defmodule Mockingjay.Strategies.GEMM do
     n_trees = length(trees)
 
     {mat_A, mat_B} = generate_matrices_AB(trees, num_features, hidden_one_size)
-    IO.puts("mat_A: #{inspect(mat_A)}")
-    IO.puts("mat_B: #{inspect(mat_B)}")
+    # IO.puts("mat_A: #{inspect(mat_A)}")
+    # IO.puts("mat_B: #{inspect(mat_B)}")
     mat_C = generate_matrix_C(trees, hidden_one_size, hidden_two_size)
-    IO.puts("mat_C: #{inspect(mat_C)}")
+    # IO.puts("mat_C: #{inspect(mat_C)}")
     mat_D = generate_matrix_D(trees, hidden_two_size)
-    IO.puts("mat_D: #{inspect(mat_D)}")
+    # IO.puts("mat_D: #{inspect(mat_D)}")
     mat_E = generate_matrix_E(trees, hidden_two_size, hidden_three_size)
-    IO.puts("mat_E: #{inspect(mat_E)}")
-    IO.puts("n_trees: #{inspect(n_trees)}")
-    IO.puts("hidden_one_size: #{inspect(hidden_one_size)}")
-    IO.puts("hidden_two_size: #{inspect(hidden_two_size)}")
-    IO.puts("hidden_three_size: #{inspect(hidden_three_size)}")
+    # IO.puts("mat_E: #{inspect(mat_E)}")
+    # IO.puts("n_trees: #{inspect(n_trees)}")
+    # IO.puts("hidden_one_size: #{inspect(hidden_one_size)}")
+    # IO.puts("hidden_two_size: #{inspect(hidden_two_size)}")
+    # IO.puts("hidden_three_size: #{inspect(hidden_three_size)}")
 
     &forward(
       &1,
-      hidden_one_size,
-      hidden_two_size,
-      # hidden_three_size,
       mat_A,
       mat_B,
       mat_C,
       mat_D,
       mat_E,
-      n_trees,
-      Mockingjay.Strategies.cond_to_fun(condition)
+      Mockingjay.Strategies.cond_to_fun(condition),
+      n_trees: n_trees,
+      hidden_one_size: hidden_one_size,
+      hidden_two_size: hidden_two_size,
+      hidden_three_size: hidden_three_size
     )
   end
 end
