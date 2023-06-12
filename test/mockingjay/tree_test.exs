@@ -1,6 +1,6 @@
-defmodule TreeTests do
-  alias Mockingjay.Tree
+defmodule Mockingjay.TreeTest do
   use ExUnit.Case, async: true
+  alias Mockingjay.Tree
 
   setup do
     %{

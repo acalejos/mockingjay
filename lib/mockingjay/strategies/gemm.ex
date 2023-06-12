@@ -1,6 +1,8 @@
 defmodule Mockingjay.Strategies.GEMM do
   import Nx.Defn
-  alias Mockingjay.{Tree, DecisionTree}
+
+  alias Mockingjay.Tree
+  alias Mockingjay.DecisionTree
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
   defp get_leaf_left_depths(root) do
@@ -21,7 +23,8 @@ defmodule Mockingjay.Strategies.GEMM do
                  x,
                  hidden_one_size,
                  hidden_two_size,
-                 hidden_three_size,
+                 # TO-DO: do we really need this?
+                 # hidden_three_size,
                  mat_A,
                  mat_B,
                  mat_C,
@@ -30,8 +33,8 @@ defmodule Mockingjay.Strategies.GEMM do
                  n_trees,
                  condition
                ) do
-    x
-    |> then(&Nx.dot(mat_A, [1], &1, [1]))
+    mat_A
+    |> Nx.dot([1], x, [0])
     |> condition.(mat_B)
     |> Nx.reshape({n_trees, hidden_one_size, :auto})
     |> then(&Nx.dot(mat_C, [2], [0], &1, [1], [0]))
@@ -39,7 +42,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.equal(mat_D)
     |> Nx.reshape({n_trees, hidden_two_size, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
-    |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    # |> Nx.reshape({n_trees, hidden_three_size, :auto})
     |> Nx.squeeze()
   end
 
@@ -288,7 +291,7 @@ defmodule Mockingjay.Strategies.GEMM do
       &1,
       hidden_one_size,
       hidden_two_size,
-      hidden_three_size,
+      # hidden_three_size,
       mat_A,
       mat_B,
       mat_C,

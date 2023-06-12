@@ -1,6 +1,6 @@
 defprotocol Mockingjay.DecisionTree do
   @doc """
-  Returns a Tree struct representing the decision tree.
+  Returns a `Mockingjay.Tree` struct representing the decision tree.
   """
   @spec trees(data :: any) :: [Tree.t()]
   def trees(data)
@@ -20,27 +20,27 @@ end
 
 defmodule Mockingjay.Tree do
   @moduledoc """
-  A struct containing a convenient in-memory representation of a decision tree. Each "node" in the tree is a `Tree` struct.
-  Each child of a node is either a `Tree` struct or `nil` if it is a leaf.
+  A struct containing a convenient in-memory representation of a decision tree.
 
-  id: The id of the node. This designates the position in a BFS traversal of the tree. nil for leaf nodes.
-  left: The left child of the node.
-  right: The right child of the node.
-  value: The value of the node:
-    - For leaf nodes, this is the value as a number.
-    - For non-leaf nodes, this is a map containing the following keys:
-      - feature: The feature used to split the data (if it is not a leaf).
-      - threshold: The threshold used to split the data (if it is not a leaf).
-      - operator: The condition used to split the data (if it is not a leaf) Can be `:le`, `:lt`, `:ge`, `:gt`.
+  Each "node" in the tree is a `Tree` struct. Each child of a node is either a `Tree` struct or `nil` if it is a leaf.
+
+  * `:id` - The id of the node. This designates the position in a BFS traversal of the tree. nil for leaf nodes.
+  * `:left` - The left child of the node.
+  * `:right` - The right child of the node.
+  * `:value` - The value of the node:
+    * For leaf nodes, this is the value as a number.
+    * For non-leaf nodes, this is a map containing the following keys:
+      * `:feature` - The feature used to split the data (if it is not a leaf).
+      * `:threshold` - The threshold used to split the data (if it is not a leaf).
+      * `:operator` - The condition used to split the data (if it is not a leaf) Can be `:le`, `:lt`, `:ge`, `:gt`.
   """
-  alias Mockingjay.Tree
   @enforce_keys [:id, :value]
   defstruct [:id, :left, :right, :value]
 
   def from_map(%{} = map) do
     case map do
       %{left: nil, right: nil, value: value} when is_number(value) ->
-        %Tree{
+        %__MODULE__{
           id: make_ref(),
           left: nil,
           right: nil,
@@ -48,7 +48,7 @@ defmodule Mockingjay.Tree do
         }
 
       %{value: value} when is_number(value) ->
-        %Tree{
+        %__MODULE__{
           id: make_ref(),
           left: nil,
           right: nil,
@@ -60,10 +60,10 @@ defmodule Mockingjay.Tree do
 
       %{left: left, right: right, value: %{threshold: threshold, feature: feature}}
       when is_number(threshold) and is_number(feature) ->
-        %Tree{
+        %__MODULE__{
           id: make_ref(),
-          left: Tree.from_map(left),
-          right: Tree.from_map(right),
+          left: from_map(left),
+          right: from_map(right),
           value: %{threshold: threshold, feature: feature}
         }
 
@@ -82,8 +82,8 @@ defmodule Mockingjay.Tree do
   @typedoc "A simple binary tree implementation."
   @type t() :: %__MODULE__{
           id: pos_integer(),
-          left: __MODULE__.t() | nil,
-          right: __MODULE__.t() | nil,
+          left: t() | nil,
+          right: t() | nil,
           value: any()
         }
 
@@ -140,30 +140,41 @@ defmodule Mockingjay.Tree do
   end
 
   def get_decision_nodes(tree) do
-    bfs(tree)
+    tree
+    |> bfs()
     |> Enum.filter(fn node ->
       is_map(node.value)
     end)
   end
 
   def get_leaf_nodes(tree) do
+    tree
+    |> do_get_leaf_nodes([])
+    |> Enum.reverse()
+  end
+
+  defp do_get_leaf_nodes(tree, nodes) do
     # Unlilke get_decision_nodes, this function returns the leaf nodes in DFS order.
     case tree do
-      %{left: nil, right: nil} ->
-        [tree]
+      %__MODULE__{left: nil, right: nil} ->
+        [tree | nodes]
 
-      %{left: left, right: right} ->
-        get_leaf_nodes(left) ++ get_leaf_nodes(right)
+      %__MODULE__{left: left, right: right} ->
+        left
+        |> do_get_leaf_nodes(nodes)
+        |> then(&do_get_leaf_nodes(right, &1))
     end
   end
 
   def get_leaf_values(tree) do
-    get_leaf_nodes(tree)
+    tree
+    |> get_leaf_nodes()
     |> Enum.map(& &1.value)
   end
 
   def get_decision_values(tree) do
-    bfs(tree)
+    tree
+    |> bfs()
     |> Enum.filter(fn node ->
       is_map(node.value)
     end)
@@ -175,10 +186,7 @@ defmodule Mockingjay.Tree do
       nil ->
         false
 
-      %Tree{id: id, left: nil, right: nil} ->
-        id == child_id
-
-      %Tree{id: id, left: left, right: right} ->
+      %__MODULE__{id: id, left: left, right: right} ->
         id == child_id or is_child(left, child_id) or is_child(right, child_id)
     end
   end
