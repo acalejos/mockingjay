@@ -3,6 +3,7 @@ defmodule Mockingjay.Strategies.GEMM do
 
   alias Mockingjay.Tree
   alias Mockingjay.DecisionTree
+  alias Mockingjay.PostTransform
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
   defp get_leaf_left_depths(root) do
@@ -24,7 +25,7 @@ defmodule Mockingjay.Strategies.GEMM do
                  hidden_one_size,
                  hidden_two_size,
                  # TO-DO: do we really need this?
-                 # hidden_three_size,
+                 hidden_three_size,
                  mat_A,
                  mat_B,
                  mat_C,
@@ -34,7 +35,7 @@ defmodule Mockingjay.Strategies.GEMM do
                  condition
                ) do
     mat_A
-    |> Nx.dot([1], x, [0])
+    |> Nx.dot([1], x, [1])
     |> condition.(mat_B)
     |> Nx.reshape({n_trees, hidden_one_size, :auto})
     |> then(&Nx.dot(mat_C, [2], [0], &1, [1], [0]))
@@ -42,8 +43,13 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.equal(mat_D)
     |> Nx.reshape({n_trees, hidden_two_size, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
-    # |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    # TODO: Move this to a `post_transform` function (callback?)
     |> Nx.squeeze()
+    |> Nx.transpose()
+    |> Nx.reshape({:auto, 3, 10})
+    |> Nx.sum(axes: [2])
+    |> Axon.Activations.softmax(axis: 1)
   end
 
   # TODO The generation of matrices can likely be done in 1 pass rather than a different pass for each
@@ -291,14 +297,14 @@ defmodule Mockingjay.Strategies.GEMM do
       &1,
       hidden_one_size,
       hidden_two_size,
-      # hidden_three_size,
+      hidden_three_size,
       mat_A,
       mat_B,
       mat_C,
       mat_D,
       mat_E,
       n_trees,
-      Mockingjay.Strategies.cond_to_fun(condition)
+      Mockingjay.Strategy.cond_to_fun(condition)
     )
   end
 end

@@ -1,4 +1,7 @@
-defmodule Mockingjay.Strategies do
+defmodule Mockingjay.Strategy do
+  @enforce_keys [:post_transform, :forward, :aggregate]
+  defstruct [:post_transform, :forward, :aggregate]
+
   def cond_to_fun(condition) do
     case condition do
       :gt ->
