@@ -12,6 +12,8 @@ defmodule Mockingjay.Strategy do
 
 
   ## Options
+  * `forward` - the forward function to use. Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t().
+      If none is specified, the best option will be chosen based on the output type of the model.
   * `:post_transform` - the post transform to use. Builtin options are `:none`, `:softmax`, `:sigmoid`,
       or `:log_softmax`, and `:linear`. Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t().
       If none is specified, the best option will be chosen based on the output type of the model.
@@ -19,7 +21,7 @@ defmodule Mockingjay.Strategy do
       Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t(). If none is specified,
       the best option will be chosen based on the output type of the model.
   """
-  @callback compile(data :: any(), opts :: Keyword.t()) :: t()
+  @callback compile(data :: any(), opts :: Keyword.t()) :: Mockingjay.Model.t()
 
   def cond_to_fun(condition) do
     case condition do
@@ -79,4 +81,15 @@ defmodule Mockingjay.Strategy do
               "Invalid post_transform: #{inspect(post_transform)} -- must be one of :none, :softmax, :sigmoid, :log_softmax, :log_sigmoig or :linear -- or a custom function"
     end
   end
+end
+
+defmodule Mockingjay.Model do
+  @enforce_keys [:forward, :aggregate, :post_transform]
+  defstruct [:forward, :aggregate, :post_transform]
+
+  @type t :: %__MODULE__{
+          forward: (Nx.Container.t() -> Nx.Container.t()),
+          aggregate: (Nx.Container.t() -> Nx.Container.t()),
+          post_transform: (Nx.Container.t() -> Nx.Container.t())
+        }
 end

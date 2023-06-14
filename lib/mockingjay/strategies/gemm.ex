@@ -3,10 +3,9 @@ defmodule Mockingjay.Strategies.GEMM do
 
   alias Mockingjay.Tree
   alias Mockingjay.DecisionTree
+  alias Mockingjay.Model
 
   @behaviour Mockingjay.Strategy
-
-  defstruct [:forward, :aggregate, :post_transform]
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
   # TO-DO: make TCOptimizable
@@ -157,6 +156,7 @@ defmodule Mockingjay.Strategies.GEMM do
     {Nx.reshape(d, {:auto, 1}), e}
   end
 
+  @impl true
   def compile(ensemble, _opts \\ []) do
     trees = DecisionTree.trees(ensemble)
     num_features = DecisionTree.num_features(ensemble)
@@ -206,7 +206,7 @@ defmodule Mockingjay.Strategies.GEMM do
       Mockingjay.Strategy.infer_post_transform(n_classes)
       |> Mockingjay.Strategy.post_transform_to_func()
 
-    model = %__MODULE__{
+    model = %Model{
       forward:
         &forward(
           &1,
