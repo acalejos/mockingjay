@@ -3,7 +3,10 @@ defmodule Mockingjay.Strategies.GEMM do
 
   alias Mockingjay.Tree
   alias Mockingjay.DecisionTree
-  alias Mockingjay.PostTransform
+
+  @behaviour Mockingjay.Strategy
+
+  defstruct [:forward, :aggregate, :post_transform]
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
   # TO-DO: make TCOptimizable
@@ -19,6 +22,20 @@ defmodule Mockingjay.Strategies.GEMM do
       %{left: left, right: right} ->
         _get_leaf_left_depths(left, depth + 1) ++ _get_leaf_left_depths(right, depth)
     end
+  end
+
+  deftransform ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
+    x
+    |> Nx.squeeze()
+    |> Nx.transpose()
+    |> Nx.reshape({:auto, n_gbdt_classes, n_trees_per_class})
+    |> Nx.sum(axes: [2])
+  end
+
+  deftransform aggregate(x) do
+    x
+    |> Nx.sum(axes: [0])
+    |> Nx.transpose()
   end
 
   defn forward(x, mat_A, mat_B, mat_C, mat_D, mat_E, condition, opts \\ []) do
@@ -39,12 +56,6 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.reshape({n_trees, hidden_two_size, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
     |> Nx.reshape({n_trees, hidden_three_size, :auto})
-    # TODO: Move this to a `post_transform` function (callback?)
-    |> Nx.squeeze()
-    |> Nx.transpose()
-    |> Nx.reshape({:auto, 3, 10})
-    |> Nx.sum(axes: [2])
-    |> Axon.Activations.softmax(axis: 1)
   end
 
   # TODO The generation of matrices can likely be done in 1 pass rather than a different pass for each
@@ -151,15 +162,12 @@ defmodule Mockingjay.Strategies.GEMM do
     num_features = DecisionTree.num_features(ensemble)
     condition = DecisionTree.condition(ensemble)
 
-    # TODO : Infer this from shape of leaf node values
-    n_classes =
-      case DecisionTree.output_type(ensemble) do
-        :classification ->
-          DecisionTree.num_classes(ensemble)
+    # Overall number of classes for classification, 1 for regression
+    n_classes = DecisionTree.num_classes(ensemble)
 
-        :regression ->
-          1
-      end
+    # Number of classes each weak learner can predict
+    # TODO: This is currently always 1, but could be more
+    n_weak_learner_classes = 1
 
     {hidden_one_size, hidden_two_size} =
       Enum.reduce(trees, {0, 0}, fn tree, {h1, h2} ->
@@ -167,7 +175,7 @@ defmodule Mockingjay.Strategies.GEMM do
          max(h2, length(Tree.get_leaf_nodes(tree)))}
       end)
 
-    hidden_three_size = n_classes
+    hidden_three_size = n_weak_learner_classes
 
     n_trees = length(trees)
 
@@ -175,18 +183,48 @@ defmodule Mockingjay.Strategies.GEMM do
     mat_C = generate_matrix_C(trees, hidden_one_size, hidden_two_size)
     {mat_D, mat_E} = generate_matrices_DE(trees, hidden_two_size, hidden_three_size)
 
-    &forward(
-      &1,
-      mat_A,
-      mat_B,
-      mat_C,
-      mat_D,
-      mat_E,
-      Mockingjay.Strategies.cond_to_fun(condition),
-      n_trees: n_trees,
-      hidden_one_size: hidden_one_size,
-      hidden_two_size: hidden_two_size,
-      hidden_three_size: hidden_three_size
-    )
+    aggregation =
+      cond do
+        n_classes > 1 and n_trees > 1 ->
+          n_gbdt_classes = if n_classes > 2, do: n_classes, else: 1
+          n_trees_per_class = trunc(n_trees / n_gbdt_classes)
+
+          &ensemble_aggregate(
+            &1,
+            n_gbdt_classes,
+            n_trees_per_class
+          )
+
+        n_classes > 1 and n_trees == 1 ->
+          &aggregate(&1)
+
+        true ->
+          raise "Unknown output type"
+      end
+
+    post_transform =
+      Mockingjay.Strategy.infer_post_transform(n_classes)
+      |> Mockingjay.Strategy.post_transform_to_func()
+
+    model = %__MODULE__{
+      forward:
+        &forward(
+          &1,
+          mat_A,
+          mat_B,
+          mat_C,
+          mat_D,
+          mat_E,
+          Mockingjay.Strategy.cond_to_fun(condition),
+          n_trees: n_trees,
+          hidden_one_size: hidden_one_size,
+          hidden_two_size: hidden_two_size,
+          hidden_three_size: hidden_three_size
+        ),
+      aggregate: aggregation,
+      post_transform: post_transform
+    }
+
+    model
   end
 end
