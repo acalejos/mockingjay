@@ -1,13 +1,9 @@
 defmodule Mockingjay do
   def convert(data, opts \\ []) do
-    opts = Keyword.validate!(opts, strategy: :auto)
-
-    if opts[:strategy] not in [:gemm, :tree_traversal, :ptt, :auto] do
-      raise ArgumentError, "strategy must be one of :gemm, :tree_traversal, :ptt, or :auto"
-    end
+    {strategy, opts} = Keyword.pop(opts, :strategy, :auto)
 
     strategy =
-      case opts[:strategy] do
+      case strategy do
         :gemm ->
           Mockingjay.Strategies.GEMM
 
@@ -20,16 +16,17 @@ defmodule Mockingjay do
 
         :auto ->
           Mockingjay.Strategies.GEMM
+
+        _ ->
+          raise ArgumentError, "strategy must be one of :gemm, :tree_traversal, :ptt, or :auto"
       end
 
-    strategy.compile(data)
-  end
+    {forward_opts, aggregate_opts, post_transform_opts} = strategy.init(data, opts)
 
-  def predict(model, x) do
-    x
-    |> model.forward.()
-    |> model.aggregate.()
-    |> model.post_transform.()
+    &(&1
+      |> strategy.forward(forward_opts)
+      |> strategy.aggregate(aggregate_opts)
+      |> strategy.post_transform(post_transform_opts))
   end
 end
 

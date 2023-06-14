@@ -14,7 +14,7 @@ defprotocol Mockingjay.DecisionTree do
   @spec output_type(data :: any) :: :classification | :regression
   def output_type(data)
 
-  @spec condition(data :: any) :: :gt | :lt | :ge | :le
+  @spec condition(data :: any) :: :greater | :less | :greater_equal | :less_equal
   def condition(data)
 end
 

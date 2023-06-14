@@ -1,4 +1,6 @@
 defmodule Mockingjay.Strategy do
+  import Nx.Defn
+
   @moduledoc """
   Strategy behaviour defines the interface for a strategy module.
   """
@@ -21,27 +23,22 @@ defmodule Mockingjay.Strategy do
       Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t(). If none is specified,
       the best option will be chosen based on the output type of the model.
   """
-  @callback compile(data :: any(), opts :: Keyword.t()) :: Mockingjay.Model.t()
+  @callback init(data :: any(), opts :: Keyword.t()) :: {any(), any(), any()}
+  @callback forward(x :: Nx.Container.t(), opts :: Keyword.t()) :: Nx.Container.t()
+  @callback aggregate(x :: Nx.Container.t(), opts :: Keyword.t()) :: Nx.Container.t()
+  @callback post_transform(x :: Nx.Container.t(), opts :: Keyword.t()) :: Nx.Container.t()
 
-  def cond_to_fun(condition) do
-    case condition do
-      :gt ->
-        &Nx.greater/2
-
-      :lt ->
-        &Nx.less/2
-
-      :ge ->
-        &Nx.greater_equal/2
-
-      :le ->
-        &Nx.less_equal/2
-
-      _ ->
-        raise ArgumentError,
-              "Invalid condition: #{inspect(condition)} -- must be one of :gt, :lt, :ge, :le"
-    end
+  def cond_to_fun(condition) when condition in [:greater, :less, :greater_equal, :less_equal] do
+    &apply(Nx, condition, [&1, &2])
   end
+
+  def cond_to_fun(condition) when is_function(condition, 2) do
+    condition
+  end
+
+  def cond_to_fun(condition),
+    do:
+      "Invalid condition: #{inspect(condition)} -- must be one of :greater, :less, :greater_equal, :less_equal -- or a custom function of arity 2"
 
   def infer_post_transform(n_classes) when is_integer(n_classes) do
     cond do
@@ -53,43 +50,53 @@ defmodule Mockingjay.Strategy do
     end
   end
 
-  def post_transform_to_func(post_transform) do
-    case post_transform do
-      :none ->
-        & &1
-
-      :softmax ->
-        fn x -> Axon.Activations.softmax(x, axis: 1) end
-
-      :sigmoid ->
-        &Axon.Activations.sigmoid/1
-
-      :log_softmax ->
-        fn x -> Axon.Activations.log_softmax(x, axis: 1) end
-
-      :log_sigmoid ->
-        &Axon.Activations.log_sigmoid/1
-
-      :linear ->
-        &Axon.Activations.linear/1
-
-      custom when is_function(custom) ->
-        custom
-
-      _ ->
-        raise ArgumentError,
-              "Invalid post_transform: #{inspect(post_transform)} -- must be one of :none, :softmax, :sigmoid, :log_softmax, :log_sigmoig or :linear -- or a custom function"
-    end
+  def post_transform_to_func(post_transform)
+      when post_transform in [:softmax, :linear, :sigmoid, :log_softmax, :log_sigmoid] do
+    &apply(__MODULE__, post_transform, [&1])
   end
-end
 
-defmodule Mockingjay.Model do
-  @enforce_keys [:forward, :aggregate, :post_transform]
-  defstruct [:forward, :aggregate, :post_transform]
+  def post_transform_to_func(post_transform) when is_function(post_transform, 1) do
+    post_transform
+  end
 
-  @type t :: %__MODULE__{
-          forward: (Nx.Container.t() -> Nx.Container.t()),
-          aggregate: (Nx.Container.t() -> Nx.Container.t()),
-          post_transform: (Nx.Container.t() -> Nx.Container.t())
-        }
+  def post_transform_to_func(post_transform),
+    do:
+      "Invalid post_transform: #{inspect(post_transform)} -- must be one of :none, :softmax, :sigmoid, :log_softmax, :log_sigmoig or :linear -- or a custom function of arity 1"
+
+  defn linear(x) do
+    x
+  end
+
+  defn softmax(x) do
+    max_val = stop_grad(Nx.reduce_max(x, axes: [1], keep_axes: true))
+
+    stable_exp = Nx.exp(x - max_val)
+
+    stable_exp * Nx.sum(stable_exp, axes: [-1], keep_axes: true)
+  end
+
+  defn log_softmax(x) do
+    max_val = stop_grad(Nx.reduce_max(x, axes: [1], keep_axes: true))
+
+    stable_exp = Nx.exp(x - max_val)
+
+    stable_exp
+    |> Nx.sum(axes: [1], keep_axes: true)
+    |> Nx.log()
+    |> Nx.negate()
+    |> Nx.add(stable_exp)
+  end
+
+  defn log_sigmoid(x) do
+    x = Nx.negate(x)
+    stable = Nx.max(0.0, x)
+
+    x
+    |> Nx.abs()
+    |> Nx.negate()
+    |> Nx.exp()
+    |> Nx.log1p()
+    |> Nx.add(stable)
+    |> Nx.negate()
+  end
 end
