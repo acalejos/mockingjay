@@ -24,7 +24,7 @@ defmodule Mockingjay.Strategies.GEMM do
     end
   end
 
-  deftransform ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
+  deftransformp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
     x
     |> Nx.squeeze()
     |> Nx.transpose()
@@ -32,13 +32,13 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.sum(axes: [2])
   end
 
-  deftransform aggregate(x) do
+  deftransformp aggregate(x) do
     x
     |> Nx.sum(axes: [0])
     |> Nx.transpose()
   end
 
-  defn forward(x, mat_A, mat_B, mat_C, mat_D, mat_E, condition, opts \\ []) do
+  defnp forward(x, mat_A, mat_B, mat_C, mat_D, mat_E, condition, opts \\ []) do
     opts = keyword!(opts, [:n_trees, :hidden_one_size, :hidden_two_size, :hidden_three_size])
 
     n_trees = opts[:n_trees]
@@ -60,7 +60,7 @@ defmodule Mockingjay.Strategies.GEMM do
 
   # TODO The generation of matrices can likely be done in 1 pass rather than a different pass for each
 
-  def generate_matrices_AB(trees, num_features, hidden_one_size) do
+  defp generate_matrices_AB(trees, num_features, hidden_one_size) do
     n_trees = length(trees)
 
     {indices_list, updates_list} =
@@ -90,7 +90,7 @@ defmodule Mockingjay.Strategies.GEMM do
     {Nx.reshape(a, {num_rows, num_features}), Nx.reshape(b, {num_rows, 1})}
   end
 
-  def generate_matrix_C(trees, hidden_one_size, hidden_two_size) do
+  defp generate_matrix_C(trees, hidden_one_size, hidden_two_size) do
     n_trees = length(trees)
 
     child_matrix =
@@ -123,7 +123,7 @@ defmodule Mockingjay.Strategies.GEMM do
     )
   end
 
-  def generate_matrices_DE(trees, hidden_two_size, hidden_three_size) do
+  defp generate_matrices_DE(trees, hidden_two_size, hidden_three_size) do
     n_trees = length(trees)
 
     {indices_list, updates_list} =
