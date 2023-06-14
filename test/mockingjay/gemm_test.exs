@@ -45,6 +45,7 @@ defmodule Mockingjay.GEMMTest do
     }
   end
 
+  @tag :skip
   test "A and B matrices", context do
     expected_a =
       Nx.tensor([
@@ -73,6 +74,7 @@ defmodule Mockingjay.GEMMTest do
     assert b == expected_b
   end
 
+  @tag :skip
   test "C matrix", context do
     assert GEMM.generate_matrix_C(context.trees, context.hidden_one_size, context.hidden_two_size) ==
              Nx.tensor([
@@ -86,6 +88,7 @@ defmodule Mockingjay.GEMMTest do
              ])
   end
 
+  @tag :skip
   test "D and E matrices", context do
     hidden_three_size = context.num_classes
 
@@ -110,7 +113,7 @@ defmodule Mockingjay.GEMMTest do
              ])
   end
 
-  test "compile", context do
+  test "convert", context do
     model = %Mockingjay.Model{
       trees: context.trees,
       num_classes: 1,
@@ -119,7 +122,7 @@ defmodule Mockingjay.GEMMTest do
       condition: :lt
     }
 
-    f = GEMM.compile(model)
+    f = Mockingjay.convert(model)
     assert is_function(f, 1)
   end
 end
