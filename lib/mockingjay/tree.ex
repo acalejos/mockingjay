@@ -37,6 +37,8 @@ defmodule Mockingjay.Tree do
   @enforce_keys [:id, :value]
   defstruct [:id, :left, :right, :value]
 
+  def from_map(%__MODULE__{} = t), do: t
+
   def from_map(%{} = map) do
     case map do
       %{left: nil, right: nil, value: value} when is_number(value) ->
