@@ -47,7 +47,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
                 tree_rights = tree_rights ++ [id_to_index[node.id]]
                 tree_features = tree_features ++ [0]
                 tree_thresholds = tree_thresholds ++ [0]
-                tree_values = tree_values ++ [node.value]
+                tree_values = tree_values ++ [[node.value]]
                 {tree_lefts, tree_rights, tree_features, tree_thresholds, tree_values}
 
               %Tree{left: left, right: right} ->
@@ -55,7 +55,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
                 tree_rights = tree_rights ++ [id_to_index[right.id]]
                 tree_features = tree_features ++ [node.value.feature]
                 tree_thresholds = tree_thresholds ++ [node.value.threshold]
-                tree_values = tree_values ++ [-1]
+                tree_values = tree_values ++ [[-1]]
                 {tree_lefts, tree_rights, tree_features, tree_thresholds, tree_values}
             end
           end)
@@ -64,8 +64,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
         tr = Nx.tensor(tr) |> Nx.pad(0, [{0, num_nodes - length(tr), 0}])
         tf = Nx.tensor(tf) |> Nx.pad(0, [{0, num_nodes - length(tf), 0}])
         tt = Nx.tensor(tt) |> Nx.pad(0, [{0, num_nodes - length(tt), 0}])
-        # TODO - For categorical leaf values, we need to pad with n_classes
-        tv = Nx.tensor(tv) |> Nx.pad(0, [{0, num_nodes - length(tv), 0}])
+        tv = Nx.tensor(tv) |> Nx.pad(0, [{0, num_nodes - length(tv), 0}, {0, 0, 0}])
 
         {[tl | all_lefts], [tr | all_rights], [tf | all_features], [tt | all_thresholds],
          [tv | all_values]}
@@ -96,7 +95,9 @@ defmodule Mockingjay.Strategies.TreeTraversal do
       |> Nx.reshape({:auto, n_weak_learner_classes})
       |> Nx.as_type(:f64)
 
-    nodes_offset = Nx.iota({num_trees}, type: :s64) |> Nx.multiply(num_nodes)
+    nodes_offset =
+      Nx.iota({1, num_trees}, type: :s64)
+      |> Nx.multiply(num_nodes)
 
     forward_args =
       if opts[:forward] do
