@@ -126,11 +126,11 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.dot([1], x, [1])
     |> condition.(mat_B)
     |> Nx.reshape({n_trees, max_decision_nodes, :auto})
-    |> Nx.dot([1], [0], mat_C, [2], [0])
+    |> then(&Nx.dot(mat_C, [2], [0], &1, [1], [0]))
     |> Nx.reshape({n_trees * max_leaf_nodes, :auto})
     |> Nx.equal(mat_D)
     |> Nx.reshape({n_trees, max_leaf_nodes, :auto})
-    |> Nx.dot([1], [0], mat_E, [2], [0])
+    |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
     |> Nx.reshape({n_trees, hidden_three_size, :auto})
   end
 
