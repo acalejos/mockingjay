@@ -91,6 +91,21 @@ defmodule Mockingjay.Tree do
 
   # Credit to this SO answer: https://stackoverflow.com/questions/55327307/flatten-a-binary-tree-to-list-ordered
 
+  # TO-DO: make TCOptimizable
+  def dfs(root) do
+    _dfs(root, [])
+  end
+
+  defp _dfs(root, acc) do
+    case root do
+      %{left: nil, right: nil} ->
+        acc ++ [root]
+
+      %{left: left, right: right} ->
+        [root] ++ _dfs(left, acc) ++ _dfs(right, acc)
+    end
+  end
+
   def bfs(root) do
     root
     |> reduce_tree([], fn val, acc ->
@@ -157,15 +172,6 @@ defmodule Mockingjay.Tree do
 
   defp do_get_leaf_nodes(tree, nodes) do
     # Unlilke get_decision_nodes, this function returns the leaf nodes in DFS order.
-    case tree do
-      %__MODULE__{left: nil, right: nil} ->
-        [tree | nodes]
-
-      %__MODULE__{left: left, right: right} ->
-        left
-        |> do_get_leaf_nodes(nodes)
-        |> then(&do_get_leaf_nodes(right, &1))
-    end
   end
 
   def get_leaf_values(tree) do

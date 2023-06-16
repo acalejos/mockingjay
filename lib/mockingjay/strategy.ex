@@ -52,7 +52,7 @@ defmodule Mockingjay.Strategy do
 
   def post_transform_to_func(post_transform)
       when post_transform in [:softmax, :linear, :sigmoid, :log_softmax, :log_sigmoid] do
-    &apply(__MODULE__, post_transform, [&1])
+    &apply(Axon.Activations, post_transform, [&1])
   end
 
   def post_transform_to_func(post_transform) when is_function(post_transform, 1) do

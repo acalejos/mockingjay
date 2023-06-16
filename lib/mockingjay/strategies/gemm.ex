@@ -41,7 +41,7 @@ defmodule Mockingjay.Strategies.GEMM do
         [n_classes: n_classes]
       end
 
-    agrgegate_args =
+    aggregate_args =
       if opts[:aggregate] do
         [custom_aggregate: opts[:aggregate]]
       else
@@ -69,7 +69,7 @@ defmodule Mockingjay.Strategies.GEMM do
         ]
       end
 
-    {forward_args, agrgegate_args, post_transform_args}
+    {forward_args, aggregate_args, post_transform_args}
   end
 
   @impl true

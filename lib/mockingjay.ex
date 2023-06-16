@@ -8,14 +8,13 @@ defmodule Mockingjay do
           Mockingjay.Strategies.GEMM
 
         :tree_traversal ->
-          raise NotImplementedError,
-                "TreeTraversal strategy not implemented yet -- use :gemm instead"
+          Mockingjay.Strategies.TreeTraversal
 
         :ptt ->
           raise NotImplementedError, "PTT strategy not implemented yet -- use :gemm instead"
 
         :auto ->
-          Mockingjay.Strategies.GEMM
+          Mockingjay.Strategies.TreeTraversal
 
         _ ->
           raise ArgumentError, "strategy must be one of :gemm, :tree_traversal, :ptt, or :auto"
