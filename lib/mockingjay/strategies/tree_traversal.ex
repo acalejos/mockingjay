@@ -72,25 +72,27 @@ defmodule Mockingjay.Strategies.TreeTraversal do
          [tv | all_values]}
       end)
 
-    lefts = Nx.stack(lefts) |> IO.inspect(label: "Lefts", limit: :infinity) |> Nx.reshape({:auto})
+    lefts =
+      Nx.stack(Enum.reverse(lefts))
+      |> Nx.reshape({:auto})
 
     rights =
-      Nx.stack(rights) |> IO.inspect(label: "Right", limit: :infinity) |> Nx.reshape({:auto})
+      Nx.stack(Enum.reverse(rights))
+      |> Nx.reshape({:auto})
 
     features =
-      Nx.stack(features) |> IO.inspect(label: "Features", limit: :infinity) |> Nx.reshape({:auto})
+      Nx.stack(Enum.reverse(features))
+      |> Nx.reshape({:auto})
 
     thresholds =
-      Nx.stack(thresholds)
-      |> IO.inspect(label: "Thresholds", limit: :infinity)
+      Nx.stack(Enum.reverse(thresholds))
       |> Nx.reshape({:auto})
 
     values =
-      Nx.stack(values)
-      |> IO.inspect(label: "Values")
+      Nx.stack(Enum.reverse(values))
       |> Nx.reshape({:auto, n_weak_learner_classes})
 
-    nodes_offset = Enum.map(0..(num_trees - 1), fn i -> i * num_nodes end) |> Nx.tensor()
+    nodes_offset = Nx.iota({num_trees}) |> Nx.multiply(num_nodes)
 
     forward_args =
       if opts[:forward] do
@@ -170,30 +172,20 @@ defmodule Mockingjay.Strategies.TreeTraversal do
 
       indexes =
         Enum.reduce(1..max_tree_depth, indexes, fn _, tree_nodes ->
-          IO.puts("tree_nodes: #{inspect(tree_nodes)}")
           feature_nodes = Nx.take(features, tree_nodes) |> Nx.reshape({:auto, num_trees})
-          IO.puts("feature_nodes: #{inspect(feature_nodes)}")
           feature_values = Nx.take_along_axis(x, feature_nodes, axis: 1)
-          IO.puts("feature_values: #{inspect(feature_values)}")
-          local_thresholds = Nx.take(thresholds, indexes) |> Nx.reshape({:auto, num_trees})
-          IO.puts("local_thresholds: #{inspect(local_thresholds)}")
-          local_lefts = Nx.take(lefts, indexes) |> Nx.reshape({:auto, num_trees})
-          IO.puts("local_lefts: #{inspect(local_lefts)}")
-          local_rights = Nx.take(rights, indexes) |> Nx.reshape({:auto, num_trees})
-          IO.puts("local_rights: #{inspect(local_rights)}")
+          local_thresholds = Nx.take(thresholds, tree_nodes) |> Nx.reshape({:auto, num_trees})
+          local_lefts = Nx.take(lefts, tree_nodes) |> Nx.reshape({:auto, num_trees})
+          local_rights = Nx.take(rights, tree_nodes) |> Nx.reshape({:auto, num_trees})
 
           Nx.select(
             condition.(feature_values, local_thresholds),
             local_lefts,
             local_rights
           )
-          |> IO.inspect(label: "Selected", limit: :infinity)
           |> Nx.add(nodes_offset)
           |> Nx.reshape({:auto})
         end)
-
-      IO.puts("Indexes: #{inspect(indexes)}")
-      IO.inspect(values, limit: :infinity, label: "Final Values")
 
       values
       |> Nx.take(indexes)
