@@ -133,7 +133,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
   end
 
   @impl true
-  def forward(x, opts \\ []) do
+  deftransform forward(x, opts \\ []) do
     opts =
       Keyword.validate!(opts, [
         :custom_forward,
@@ -146,50 +146,25 @@ defmodule Mockingjay.Strategies.TreeTraversal do
         :features,
         :thresholds,
         :values,
-        :condition
+        :condition,
+        unroll: false
       ])
 
-    if opts[:custom_forward] do
-      opts[:custom_forward].(x, opts)
-    else
-      max_tree_depth = opts[:max_tree_depth]
-      num_trees = opts[:num_trees]
-      n_classes = opts[:n_classes]
-      nodes_offset = opts[:nodes_offset]
-      lefts = opts[:lefts]
-      rights = opts[:rights]
-      features = opts[:features]
-      thresholds = opts[:thresholds]
-      values = opts[:values]
-      condition = opts[:condition]
+    case opts[:custom_forward] do
+      value when value != nil ->
+        opts[:custom_forward].(x, opts)
 
-      batch_size = Nx.axis_size(x, 0)
-
-      indexes =
-        nodes_offset
-        |> Nx.broadcast({batch_size, num_trees})
-        |> Nx.reshape({:auto})
-
-      indexes =
-        Enum.reduce(1..max_tree_depth, indexes, fn _, tree_nodes ->
-          feature_nodes = Nx.take(features, tree_nodes) |> Nx.reshape({:auto, num_trees})
-          feature_values = Nx.take_along_axis(x, feature_nodes, axis: 1)
-          local_thresholds = Nx.take(thresholds, tree_nodes) |> Nx.reshape({:auto, num_trees})
-          local_lefts = Nx.take(lefts, tree_nodes) |> Nx.reshape({:auto, num_trees})
-          local_rights = Nx.take(rights, tree_nodes) |> Nx.reshape({:auto, num_trees})
-
-          Nx.select(
-            condition.(feature_values, local_thresholds),
-            local_lefts,
-            local_rights
-          )
-          |> Nx.add(nodes_offset)
-          |> Nx.reshape({:auto})
-        end)
-
-      values
-      |> Nx.take(indexes)
-      |> Nx.reshape({:auto, num_trees, n_classes})
+      _ ->
+        _forward(
+          x,
+          opts[:features],
+          opts[:lefts],
+          opts[:rights],
+          opts[:thresholds],
+          opts[:nodes_offset],
+          opts[:values],
+          opts
+        )
     end
   end
 
@@ -236,6 +211,51 @@ defmodule Mockingjay.Strategies.TreeTraversal do
 
       transform.(x)
     end
+  end
+
+  # TODO : Unroll here? Maybe with a limit on depth?
+  defn _forward(x, features, lefts, rights, thresholds, nodes_offset, values, opts \\ []) do
+    max_tree_depth = opts[:max_tree_depth]
+    num_trees = opts[:num_trees]
+    n_classes = opts[:n_classes]
+    condition = opts[:condition]
+    unroll = opts[:unroll]
+
+    batch_size = Nx.axis_size(x, 0)
+
+    indices =
+      nodes_offset
+      |> Nx.broadcast({batch_size, num_trees})
+      |> Nx.reshape({:auto})
+
+    {indices, _} =
+      while {tree_nodes = indices,
+             {features, lefts = Nx.as_type(lefts, :s64), rights = Nx.as_type(rights, :s64),
+              thresholds, nodes_offset, x}},
+            _ <- 1..max_tree_depth,
+            unroll: unroll do
+        feature_nodes = Nx.take(features, tree_nodes)
+        feature_nodes = feature_nodes |> Nx.reshape({:auto, num_trees})
+        feature_values = Nx.take_along_axis(x, feature_nodes, axis: 1)
+        local_thresholds = Nx.take(thresholds, tree_nodes) |> Nx.reshape({:auto, num_trees})
+        local_lefts = Nx.take(lefts, tree_nodes) |> Nx.reshape({:auto, num_trees})
+        local_rights = Nx.take(rights, tree_nodes) |> Nx.reshape({:auto, num_trees})
+
+        result =
+          Nx.select(
+            condition.(feature_values, local_thresholds),
+            local_lefts,
+            local_rights
+          )
+          |> Nx.add(nodes_offset)
+          |> Nx.reshape({:auto})
+
+        {result, {features, lefts, rights, thresholds, nodes_offset, x}}
+      end
+
+    values
+    |> Nx.take(indices)
+    |> Nx.reshape({:auto, num_trees, n_classes})
   end
 
   deftransformp _aggregate(x) do
