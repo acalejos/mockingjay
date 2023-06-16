@@ -112,10 +112,10 @@ defmodule Mockingjay.Strategies.GEMM do
       ])
 
     mat_A = opts[:mat_A]
-    mat_B = opts[:mat_B]
+    mat_B = opts[:mat_B] |> Nx.as_type(:f64)
     mat_C = opts[:mat_C]
     mat_D = opts[:mat_D]
-    mat_E = opts[:mat_E]
+    mat_E = opts[:mat_E] |> Nx.as_type(:f64)
     condition = opts[:condition]
     n_trees = opts[:n_trees]
     max_decision_nodes = opts[:max_decision_nodes]

@@ -30,7 +30,6 @@ defmodule Mockingjay.Strategies.TreeTraversal do
       |> Enum.reduce({[], [], [], [], []}, fn tree,
                                               {all_lefts, all_rights, all_features,
                                                all_thresholds, all_values} ->
-        # The trees are traversed BFS but node indices are assigned DFS
         dfs_tree = Tree.dfs(tree)
 
         id_to_index =
@@ -75,24 +74,29 @@ defmodule Mockingjay.Strategies.TreeTraversal do
     lefts =
       Nx.stack(Enum.reverse(lefts))
       |> Nx.reshape({:auto})
+      |> Nx.as_type(:s64)
 
     rights =
       Nx.stack(Enum.reverse(rights))
       |> Nx.reshape({:auto})
+      |> Nx.as_type(:s64)
 
     features =
       Nx.stack(Enum.reverse(features))
       |> Nx.reshape({:auto})
+      |> Nx.as_type(:s64)
 
     thresholds =
       Nx.stack(Enum.reverse(thresholds))
       |> Nx.reshape({:auto})
+      |> Nx.as_type(:f64)
 
     values =
       Nx.stack(Enum.reverse(values))
       |> Nx.reshape({:auto, n_weak_learner_classes})
+      |> Nx.as_type(:f64)
 
-    nodes_offset = Nx.iota({num_trees}) |> Nx.multiply(num_nodes)
+    nodes_offset = Nx.iota({num_trees}, type: :s64) |> Nx.multiply(num_nodes)
 
     forward_args =
       if opts[:forward] do
@@ -213,7 +217,6 @@ defmodule Mockingjay.Strategies.TreeTraversal do
     end
   end
 
-  # TODO : Unroll here? Maybe with a limit on depth?
   defn _forward(x, features, lefts, rights, thresholds, nodes_offset, values, opts \\ []) do
     max_tree_depth = opts[:max_tree_depth]
     num_trees = opts[:num_trees]
