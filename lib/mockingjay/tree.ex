@@ -14,7 +14,7 @@ defprotocol Mockingjay.DecisionTree do
   @spec output_type(data :: any) :: :classification | :regression
   def output_type(data)
 
-  @spec condition(data :: any) :: :gt | :lt | :ge | :le
+  @spec condition(data :: any) :: :greater | :less | :greater_equal | :less_equal
   def condition(data)
 end
 
@@ -90,6 +90,21 @@ defmodule Mockingjay.Tree do
         }
 
   # Credit to this SO answer: https://stackoverflow.com/questions/55327307/flatten-a-binary-tree-to-list-ordered
+
+  # TO-DO: make TCOptimizable
+  def dfs(root) do
+    _dfs(root, [])
+  end
+
+  defp _dfs(root, acc) do
+    case root do
+      %{left: nil, right: nil} ->
+        acc ++ [root]
+
+      %{left: left, right: right} ->
+        [root] ++ _dfs(left, acc) ++ _dfs(right, acc)
+    end
+  end
 
   def bfs(root) do
     root

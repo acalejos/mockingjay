@@ -1,25 +1,31 @@
 defmodule Mockingjay do
-  def convert(model, opts \\ []) do
-    opts = Keyword.validate!(opts, strategy: :auto)
+  def convert(data, opts \\ []) do
+    {strategy, opts} = Keyword.pop(opts, :strategy, :auto)
 
-    if opts[:strategy] not in [:gemm, :tree_traversal, :ptt, :auto] do
-      raise ArgumentError, "strategy must be one of :gemm, :tree_traversal, :ptt, or :auto"
-    end
+    strategy =
+      case strategy do
+        :gemm ->
+          Mockingjay.Strategies.GEMM
 
-    case opts[:strategy] do
-      :gemm ->
-        Mockingjay.Strategies.GEMM.compile(model)
+        :tree_traversal ->
+          Mockingjay.Strategies.TreeTraversal
 
-      :tree_traversal ->
-        raise NotImplementedError,
-              "TreeTraversal strategy not implemented yet -- use :gemm instead"
+        :ptt ->
+          raise NotImplementedError, "PTT strategy not implemented yet -- use :gemm instead"
 
-      :ptt ->
-        raise NotImplementedError, "PTT strategy not implemented yet -- use :gemm instead"
+        :auto ->
+          Mockingjay.Strategies.TreeTraversal
 
-      :auto ->
-        Mockingjay.Strategies.GEMM.compile(model)
-    end
+        _ ->
+          raise ArgumentError, "strategy must be one of :gemm, :tree_traversal, :ptt, or :auto"
+      end
+
+    {forward_opts, aggregate_opts, post_transform_opts} = strategy.init(data, opts)
+
+    &(&1
+      |> strategy.forward(forward_opts)
+      |> strategy.aggregate(aggregate_opts)
+      |> strategy.post_transform(post_transform_opts))
   end
 end
 
