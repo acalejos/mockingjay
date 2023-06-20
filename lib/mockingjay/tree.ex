@@ -140,7 +140,7 @@ defmodule Mockingjay.Tree do
   end
 
   def depth(tree) do
-    depth_from_level(tree, 1)
+    depth_from_level(tree, 0)
   end
 
   def depth_from_level(%{} = tree, current_depth) do

@@ -238,8 +238,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
               thresholds, nodes_offset, x}},
             _ <- 1..max_tree_depth,
             unroll: unroll do
-        feature_nodes = Nx.take(features, tree_nodes)
-        feature_nodes = feature_nodes |> Nx.reshape({:auto, num_trees})
+        feature_nodes = Nx.take(features, tree_nodes) |> Nx.reshape({:auto, num_trees})
         feature_values = Nx.take_along_axis(x, feature_nodes, axis: 1)
         local_thresholds = Nx.take(thresholds, tree_nodes) |> Nx.reshape({:auto, num_trees})
         local_lefts = Nx.take(lefts, tree_nodes) |> Nx.reshape({:auto, num_trees})

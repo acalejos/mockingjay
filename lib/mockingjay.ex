@@ -11,7 +11,7 @@ defmodule Mockingjay do
           Mockingjay.Strategies.TreeTraversal
 
         :ptt ->
-          raise NotImplementedError, "PTT strategy not implemented yet -- use :gemm instead"
+          Mockingjay.Strategies.PerfectTreeTraversal
 
         :auto ->
           Mockingjay.Strategies.TreeTraversal
@@ -24,8 +24,11 @@ defmodule Mockingjay do
 
     &(&1
       |> strategy.forward(forward_opts)
+      |> IO.inspect(label: "Before aggregate")
       |> strategy.aggregate(aggregate_opts)
-      |> strategy.post_transform(post_transform_opts))
+      |> IO.inspect(label: "Before post_transform")
+      |> strategy.post_transform(post_transform_opts)
+      |> IO.inspect(label: "After post_transform"))
   end
 end
 

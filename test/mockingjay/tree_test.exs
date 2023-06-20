@@ -72,7 +72,7 @@ defmodule Mockingjay.TreeTest do
   end
 
   test "depth", context do
-    assert Tree.depth(context.tree) == 4
+    assert Tree.depth(context.tree) == 3
   end
 
   test "get decision values", context do
