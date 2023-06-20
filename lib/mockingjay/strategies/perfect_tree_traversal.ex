@@ -37,19 +37,19 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
                                                         tree_values} ->
             case node do
               %Tree{left: nil, right: nil} ->
-                tree_values = tree_values ++ [[node.value]]
+                tree_values = [[node.value] | tree_values]
                 {tree_features, tree_thresholds, tree_values}
 
               %Tree{left: _left, right: _right} ->
-                tree_features = tree_features ++ [node.value.feature]
-                tree_thresholds = tree_thresholds ++ [node.value.threshold]
+                tree_features = [node.value.feature | tree_features]
+                tree_thresholds = [node.value.threshold | tree_thresholds]
                 {tree_features, tree_thresholds, tree_values}
             end
           end)
 
-        tf = Nx.tensor(tf)
-        tt = Nx.tensor(tt)
-        tv = Nx.tensor(tv)
+        tf = Nx.tensor(Enum.reverse(tf))
+        tt = Nx.tensor(Enum.reverse(tt))
+        tv = Nx.tensor(Enum.reverse(tv))
 
         {[tf | all_features], [tt | all_thresholds], [tv | all_values]}
       end)
@@ -73,14 +73,28 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       |> Nx.reshape({:auto, n_weak_learner_classes})
       |> Nx.as_type(:f64)
 
-    root_features = features[[.., 0]] |> Nx.flatten() |> Nx.as_type(:s64)
-    root_thresholds = thresholds[[.., 0]] |> Nx.flatten() |> Nx.as_type(:f64)
+    # TODO (Remove this) : Confirmed these match the Hummingbird implementation
+    root_features =
+      features[[.., 0]]
+      |> Nx.flatten()
+      |> Nx.as_type(:s64)
+
+    # TODO (Remove this) : Confirmed these match the Hummingbird implementation
+    root_thresholds =
+      thresholds[[.., 0]]
+      |> Nx.flatten()
+      |> Nx.as_type(:f64)
 
     {features, thresholds} =
       Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
         start = @factor ** depth - 1
         stop = @factor ** (depth + 1) - 2
-        n = features[[.., start..stop]] |> Nx.flatten() |> Nx.as_type(:s64)
+
+        n =
+          features[[.., start..stop]]
+          |> Nx.flatten()
+          |> Nx.as_type(:s64)
+
         b = thresholds[[.., start..stop]] |> Nx.flatten() |> Nx.as_type(:f64)
         {[n | all_nodes], [b | all_biases]}
       end)
@@ -139,15 +153,13 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       |> opts[:condition].(opts[:root_thresholds])
       |> Nx.add(opts[:indices])
       |> Nx.reshape({:auto})
-      |> IO.inspect(label: "prev_indices before loop", limit: :infinity)
+      |> dbg(limit: :infinity)
 
     prev_indices =
       Enum.zip(opts[:features], opts[:thresholds])
-      |> Enum.with_index()
-      |> Enum.reduce(prev_indices, fn {{nodes, biases}, index}, acc ->
+      |> Enum.reduce(prev_indices, fn {nodes, biases}, acc ->
         gather_indices = Nx.take(nodes, acc) |> Nx.reshape({:auto, opts[:num_trees]})
         features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
-        IO.puts("features at level #{inspect(index)}: #{inspect(features, limit: :infinity)}")
 
         acc
         |> Nx.multiply(@factor)

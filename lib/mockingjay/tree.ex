@@ -130,8 +130,8 @@ defmodule Mockingjay.Tree do
         new_acc = reducer.(node, acc)
 
         popped
-        |> :queue.snoc(left)
         |> :queue.snoc(right)
+        |> :queue.snoc(left)
         |> process_queue(new_acc, reducer)
 
       _other ->

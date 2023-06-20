@@ -24,11 +24,8 @@ defmodule Mockingjay do
 
     &(&1
       |> strategy.forward(forward_opts)
-      |> IO.inspect(label: "Before aggregate")
       |> strategy.aggregate(aggregate_opts)
-      |> IO.inspect(label: "Before post_transform")
-      |> strategy.post_transform(post_transform_opts)
-      |> IO.inspect(label: "After post_transform"))
+      |> strategy.post_transform(post_transform_opts))
   end
 end
 
