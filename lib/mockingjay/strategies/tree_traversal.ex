@@ -1,4 +1,5 @@
 defmodule Mockingjay.Strategies.TreeTraversal do
+  @moduledoc false
   import Nx.Defn
   alias Mockingjay.Tree
   alias Mockingjay.DecisionTree
@@ -6,14 +7,33 @@ defmodule Mockingjay.Strategies.TreeTraversal do
 
   @impl true
   def init(ensemble, opts \\ []) do
-    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform])
+    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform, reorder_trees: true])
+
     trees = DecisionTree.trees(ensemble)
+
     condition = DecisionTree.condition(ensemble)
     n_classes = DecisionTree.num_classes(ensemble)
     num_trees = length(trees)
+
+    trees =
+      if opts[:reorder_trees] do
+        for j <- 0..(n_classes - 1),
+            i <- 0..(Integer.floor_div(length(trees), n_classes) - 1),
+            do: Enum.at(trees, i * n_classes + j)
+      else
+        trees
+      end
+
     # Number of classes each weak learner can predict
-    # TODO: This is currently always 1, but could be more
-    n_weak_learner_classes = 1
+    # We infer from the shape of a leaf's :value key
+    n_weak_learner_classes =
+      case trees |> hd |> Tree.get_decision_values() |> hd do
+        value when is_list(value) ->
+          length(value)
+
+        _value ->
+          1
+      end
 
     num_nodes =
       Enum.reduce(trees, 0, fn tree, acc ->

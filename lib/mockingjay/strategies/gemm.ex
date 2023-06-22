@@ -1,4 +1,5 @@
 defmodule Mockingjay.Strategies.GEMM do
+  @moduledoc false
   import Nx.Defn
 
   alias Mockingjay.Tree
@@ -8,17 +9,34 @@ defmodule Mockingjay.Strategies.GEMM do
 
   @impl true
   def init(ensemble, opts \\ []) do
-    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform])
+    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform, reorder_trees: true])
     trees = DecisionTree.trees(ensemble)
+
     num_features = DecisionTree.num_features(ensemble)
     condition = DecisionTree.condition(ensemble)
 
     # Overall number of classes for classification, 1 for regression
     n_classes = DecisionTree.num_classes(ensemble)
 
+    trees =
+      if opts[:reorder_trees] do
+        for j <- 0..(n_classes - 1),
+            i <- 0..(Integer.floor_div(length(trees), n_classes) - 1),
+            do: Enum.at(trees, i * n_classes + j)
+      else
+        trees
+      end
+
     # Number of classes each weak learner can predict
-    # TODO: This is currently always 1, but could be more
-    n_weak_learner_classes = 1
+    # We infer from the shape of a leaf's :value key
+    n_weak_learner_classes =
+      case trees |> hd |> Tree.get_decision_values() |> hd do
+        value when is_list(value) ->
+          length(value)
+
+        _value ->
+          1
+      end
 
     {max_decision_nodes, max_leaf_nodes} =
       Enum.reduce(trees, {0, 0}, fn tree, {h1, h2} ->
@@ -26,13 +44,11 @@ defmodule Mockingjay.Strategies.GEMM do
          max(h2, length(Tree.get_leaf_nodes(tree)))}
       end)
 
-    hidden_three_size = n_weak_learner_classes
-
     n_trees = length(trees)
 
     {mat_A, mat_B} = generate_matrices_AB(trees, num_features, max_decision_nodes)
     mat_C = generate_matrix_C(trees, max_decision_nodes, max_leaf_nodes)
-    {mat_D, mat_E} = generate_matrices_DE(trees, max_leaf_nodes, hidden_three_size)
+    {mat_D, mat_E} = generate_matrices_DE(trees, max_leaf_nodes, n_weak_learner_classes)
 
     post_transform_args =
       if opts[:post_transform] do
@@ -65,7 +81,7 @@ defmodule Mockingjay.Strategies.GEMM do
           n_trees: n_trees,
           max_decision_nodes: max_decision_nodes,
           max_leaf_nodes: max_leaf_nodes,
-          hidden_three_size: hidden_three_size
+          n_weak_learner_classes: n_weak_learner_classes
         ]
       end
 
@@ -85,7 +101,7 @@ defmodule Mockingjay.Strategies.GEMM do
         :n_trees,
         :max_decision_nodes,
         :max_leaf_nodes,
-        :hidden_three_size,
+        :n_weak_learner_classes,
         :custom_forward
       ])
 
@@ -108,19 +124,19 @@ defmodule Mockingjay.Strategies.GEMM do
         :n_trees,
         :max_decision_nodes,
         :max_leaf_nodes,
-        :hidden_three_size
+        :n_weak_learner_classes
       ])
 
     mat_A = opts[:mat_A]
-    mat_B = opts[:mat_B] |> Nx.as_type(:f64)
+    mat_B = opts[:mat_B]
     mat_C = opts[:mat_C]
     mat_D = opts[:mat_D]
-    mat_E = opts[:mat_E] |> Nx.as_type(:f64)
+    mat_E = opts[:mat_E]
     condition = opts[:condition]
     n_trees = opts[:n_trees]
     max_decision_nodes = opts[:max_decision_nodes]
     max_leaf_nodes = opts[:max_leaf_nodes]
-    hidden_three_size = opts[:hidden_three_size]
+    n_weak_learner_classes = opts[:n_weak_learner_classes]
 
     mat_A
     |> Nx.dot([1], x, [1])
@@ -131,7 +147,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.equal(mat_D)
     |> Nx.reshape({n_trees, max_leaf_nodes, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
-    |> Nx.reshape({n_trees, hidden_three_size, :auto})
+    |> Nx.reshape({n_trees, n_weak_learner_classes, :auto})
   end
 
   @impl true
@@ -229,7 +245,9 @@ defmodule Mockingjay.Strategies.GEMM do
     b_updates = Nx.tensor(updates_list)
 
     a_zeros = Nx.broadcast(0, {n_trees, max_decision_nodes, num_features})
-    b_zeros = Nx.slice_along_axis(a_zeros, 0, 1, axis: -1) |> Nx.squeeze(axes: [-1])
+
+    b_zeros =
+      Nx.slice_along_axis(a_zeros, 0, 1, axis: -1) |> Nx.as_type(:f64) |> Nx.squeeze(axes: [-1])
 
     a = Nx.indexed_put(a_zeros, a_indices, a_updates)
 
@@ -249,8 +267,8 @@ defmodule Mockingjay.Strategies.GEMM do
           Enum.with_index(Tree.get_leaf_nodes(tree), fn leaf_node, leaf_index ->
             truth_value =
               cond do
-                Tree.is_child(internal_node.left, leaf_node.id) -> 1
-                Tree.is_child(internal_node.right, leaf_node.id) -> -1
+                Tree.child?(internal_node.left, leaf_node.id) -> 1
+                Tree.child?(internal_node.right, leaf_node.id) -> -1
                 true -> 0
               end
 
@@ -272,7 +290,7 @@ defmodule Mockingjay.Strategies.GEMM do
     )
   end
 
-  defp generate_matrices_DE(trees, max_leaf_nodes, hidden_three_size) do
+  defp generate_matrices_DE(trees, max_leaf_nodes, n_weak_learner_classes) do
     n_trees = length(trees)
 
     {indices_list, updates_list} =
@@ -280,7 +298,7 @@ defmodule Mockingjay.Strategies.GEMM do
       |> Enum.with_index()
       |> Enum.flat_map(fn {tree, index} ->
         Enum.with_index(Tree.get_leaf_nodes(tree), fn node, node_index ->
-          if hidden_three_size == 1 do
+          if n_weak_learner_classes == 1 do
             {[index, 0, node_index], node.value}
           else
             {[index, trunc(node.value), node_index], 1}
@@ -299,7 +317,9 @@ defmodule Mockingjay.Strategies.GEMM do
     d = Nx.indexed_put(d_zero, d_indices, d_updates)
 
     e_updates = Nx.tensor(updates_list)
-    e_zero = Nx.broadcast(0, {n_trees, hidden_three_size, max_leaf_nodes})
+
+    e_zero =
+      Nx.broadcast(0, {n_trees, n_weak_learner_classes, max_leaf_nodes}) |> Nx.as_type(:f64)
 
     e = Nx.indexed_put(e_zero, e_indices, e_updates)
 

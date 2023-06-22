@@ -1,4 +1,5 @@
 defmodule Mockingjay.Strategies.PerfectTreeTraversal do
+  @moduledoc false
   alias Mockingjay.Tree
   alias Mockingjay.DecisionTree
   import Nx.Defn
@@ -9,14 +10,31 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
 
   @impl true
   def init(data, opts \\ []) do
-    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform])
+    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform, reorder_trees: true])
     trees = DecisionTree.trees(data)
     condition = DecisionTree.condition(data)
     n_classes = DecisionTree.num_classes(data)
     num_trees = length(trees)
+
+    trees =
+      if opts[:reorder_trees] do
+        for j <- 0..(n_classes - 1),
+            i <- 0..(Integer.floor_div(length(trees), n_classes) - 1),
+            do: Enum.at(trees, i * n_classes + j)
+      else
+        trees
+      end
+
     # Number of classes each weak learner can predict
-    # TODO: This is currently always 1, but could be more
-    n_weak_learner_classes = 1
+    # We infer from the shape of a leaf's :value key
+    n_weak_learner_classes =
+      case trees |> hd |> Tree.get_decision_values() |> hd do
+        value when is_list(value) ->
+          length(value)
+
+        _value ->
+          1
+      end
 
     max_tree_depth =
       Enum.reduce(trees, 0, fn tree, acc ->
@@ -24,9 +42,6 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       end)
 
     perfect_trees = trees |> Enum.map(&make_tree_perfect(&1, 0, max_tree_depth))
-
-    # num_internal_nodes = @factor ** max_tree_depth - 1
-    # num_leaves = @factor ** max_tree_depth
 
     {features, thresholds, values} =
       perfect_trees
@@ -58,32 +73,27 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     features =
       Nx.stack(Enum.reverse(features))
       |> Nx.reshape({num_trees, @factor ** max_tree_depth - 1})
-      |> Nx.as_type(:s64)
 
     # shape of {num_trees, 2 ** max_tree_depth - 1}
     thresholds =
       Nx.stack(Enum.reverse(thresholds))
       |> Nx.reshape({num_trees, @factor ** max_tree_depth - 1})
-      |> Nx.as_type(:f64)
+      |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
     # shape of {num_trees, 2 ** max_tree_depth}
-    # TODO (Remove this) : Confirmed these leaves match the Hummingbird implementation
     values =
       Nx.stack(Enum.reverse(values))
       |> Nx.reshape({:auto, n_weak_learner_classes})
-      |> Nx.as_type(:f64)
+      |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
-    # TODO (Remove this) : Confirmed these match the Hummingbird implementation
     root_features =
       features[[.., 0]]
       |> Nx.flatten()
-      |> Nx.as_type(:s64)
 
-    # TODO (Remove this) : Confirmed these match the Hummingbird implementation
     root_thresholds =
       thresholds[[.., 0]]
       |> Nx.flatten()
-      |> Nx.as_type(:f64)
+      |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
     {features, thresholds} =
       Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
@@ -93,13 +103,15 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
         n =
           features[[.., start..stop]]
           |> Nx.flatten()
-          |> Nx.as_type(:s64)
 
-        b = thresholds[[.., start..stop]] |> Nx.flatten() |> Nx.as_type(:f64)
+        b =
+          thresholds[[.., start..stop]]
+          |> Nx.flatten()
+          |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
+
         {[n | all_nodes], [b | all_biases]}
       end)
 
-    # TODO (Remove this) : Confirmed these match the Hummingbird implementation
     features = Enum.reverse(features)
     thresholds = Enum.reverse(thresholds)
 
@@ -146,18 +158,17 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
   end
 
   @impl true
-  def forward(x, opts \\ []) do
+  deftransform forward(x, opts \\ []) do
     prev_indices =
       x
       |> Nx.take(opts[:root_features], axis: 1)
       |> opts[:condition].(opts[:root_thresholds])
       |> Nx.add(opts[:indices])
       |> Nx.reshape({:auto})
-      |> dbg(limit: :infinity)
 
     prev_indices =
-      Enum.zip(opts[:features], opts[:thresholds])
-      |> Enum.reduce(prev_indices, fn {nodes, biases}, acc ->
+      Enum.zip_reduce([opts[:features], opts[:thresholds]], prev_indices, fn elems, acc ->
+        {nodes, biases} = elems |> List.to_tuple()
         gather_indices = Nx.take(nodes, acc) |> Nx.reshape({:auto, opts[:num_trees]})
         features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
 
@@ -165,8 +176,6 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
         |> Nx.multiply(@factor)
         |> Nx.add(opts[:condition].(features, Nx.take(biases, acc)))
       end)
-
-    IO.inspect(prev_indices, label: "prev_indices after loop", limit: :infinity)
 
     Nx.take(opts[:values], prev_indices)
     |> Nx.reshape({:auto, opts[:num_trees], opts[:n_classes]})
@@ -217,7 +226,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     end
   end
 
-  def make_tree_perfect(tree, current_depth, max_depth) do
+  defp make_tree_perfect(tree, current_depth, max_depth) do
     case tree do
       %Tree{left: nil, right: nil} ->
         if current_depth < max_depth do

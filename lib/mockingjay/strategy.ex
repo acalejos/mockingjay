@@ -1,34 +1,14 @@
 defmodule Mockingjay.Strategy do
-  import Nx.Defn
-
-  @moduledoc """
-  Strategy behaviour defines the interface for a strategy module.
-  """
+  @moduledoc false
   @type t :: Nx.Container.t()
 
-  @doc """
-  Compiled the given data into a model with the given options.
-
-  The output model is a struct fields of `:forward`, `:aggregate`, and `:post_transform`.
-  These can be set directly or inferred from the data.
-
-
-  ## Options
-  * `forward` - the forward function to use. Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t().
-      If none is specified, the best option will be chosen based on the output type of the model.
-  * `:post_transform` - the post transform to use. Builtin options are `:none`, `:softmax`, `:sigmoid`,
-      or `:log_softmax`, and `:linear`. Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t().
-      If none is specified, the best option will be chosen based on the output type of the model.
-  * `:aggregate` - The aggregation function to use. Builtin options are `:none`, `:mean`, `:sum`, `:max`, and `:min`.
-      Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t(). If none is specified,
-      the best option will be chosen based on the output type of the model.
-  """
   @callback init(data :: any(), opts :: Keyword.t()) :: {any(), any(), any()}
   @callback forward(x :: Nx.Container.t(), opts :: Keyword.t()) :: Nx.Container.t()
   @callback aggregate(x :: Nx.Container.t(), opts :: Keyword.t()) :: Nx.Container.t()
   @callback post_transform(x :: Nx.Container.t(), opts :: Keyword.t()) :: Nx.Container.t()
 
-  def cond_to_fun(condition) when condition in [:greater, :less, :greater_equal, :less_equal] do
+  def cond_to_fun(condition)
+      when condition in [:greater, :less, :greater_equal, :less_equal, :equal, :not_equal] do
     &apply(Nx, condition, [&1, &2])
   end
 
@@ -38,7 +18,10 @@ defmodule Mockingjay.Strategy do
 
   def cond_to_fun(condition),
     do:
-      "Invalid condition: #{inspect(condition)} -- must be one of :greater, :less, :greater_equal, :less_equal -- or a custom function of arity 2"
+      raise(
+        ArgumentError,
+        "Invalid condition: #{inspect(condition)} -- must be one of :greater, :less, :greater_equal, :less_equal, :equal, :not_equal -- or a custom function of arity 2"
+      )
 
   def infer_post_transform(n_classes) when is_integer(n_classes) do
     cond do
@@ -63,40 +46,23 @@ defmodule Mockingjay.Strategy do
     do:
       "Invalid post_transform: #{inspect(post_transform)} -- must be one of :none, :softmax, :sigmoid, :log_softmax, :log_sigmoig or :linear -- or a custom function of arity 1"
 
-  defn linear(x) do
-    x
-  end
+  def get_strategy(ensemble, opts \\ []) do
+    opts = Keyword.validate!(opts, high: 10, low: 3)
+    # The current heuristic is such that GEMM <= low < PerfTreeTrav <= high < TreeTrav
+    max_tree_depth =
+      Enum.reduce(Mockingjay.DecisionTree.trees(ensemble), 0, fn tree, acc ->
+        max(acc, Mockingjay.Tree.depth(tree))
+      end)
 
-  defn softmax(x) do
-    max_val = stop_grad(Nx.reduce_max(x, axes: [1], keep_axes: true))
+    cond do
+      max_tree_depth <= opts[:low] ->
+        Mockingjay.Strategies.GEMM
 
-    stable_exp = Nx.exp(x - max_val)
+      max_tree_depth <= opts[:high] ->
+        Mockingjay.Strategies.PerfectTreeTraversal
 
-    stable_exp * Nx.sum(stable_exp, axes: [-1], keep_axes: true)
-  end
-
-  defn log_softmax(x) do
-    max_val = stop_grad(Nx.reduce_max(x, axes: [1], keep_axes: true))
-
-    stable_exp = Nx.exp(x - max_val)
-
-    stable_exp
-    |> Nx.sum(axes: [1], keep_axes: true)
-    |> Nx.log()
-    |> Nx.negate()
-    |> Nx.add(stable_exp)
-  end
-
-  defn log_sigmoid(x) do
-    x = Nx.negate(x)
-    stable = Nx.max(0.0, x)
-
-    x
-    |> Nx.abs()
-    |> Nx.negate()
-    |> Nx.exp()
-    |> Nx.log1p()
-    |> Nx.add(stable)
-    |> Nx.negate()
+      true ->
+        Mockingjay.Strategies.TreeTraversal
+    end
   end
 end
