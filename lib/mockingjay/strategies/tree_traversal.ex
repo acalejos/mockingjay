@@ -67,7 +67,8 @@ defmodule Mockingjay.Strategies.TreeTraversal do
                 tree_rights = tree_rights ++ [id_to_index[node.id]]
                 tree_features = tree_features ++ [0]
                 tree_thresholds = tree_thresholds ++ [0]
-                tree_values = tree_values ++ [[node.value]]
+                current_value = if is_list(node.value), do: node.value, else: [node.value]
+                tree_values = tree_values ++ [current_value]
                 {tree_lefts, tree_rights, tree_features, tree_thresholds, tree_values}
 
               %Tree{left: left, right: right} ->
@@ -93,27 +94,22 @@ defmodule Mockingjay.Strategies.TreeTraversal do
     lefts =
       Nx.stack(Enum.reverse(lefts))
       |> Nx.reshape({:auto})
-      |> Nx.as_type(:s64)
 
     rights =
       Nx.stack(Enum.reverse(rights))
       |> Nx.reshape({:auto})
-      |> Nx.as_type(:s64)
 
     features =
       Nx.stack(Enum.reverse(features))
       |> Nx.reshape({:auto})
-      |> Nx.as_type(:s64)
 
     thresholds =
       Nx.stack(Enum.reverse(thresholds))
       |> Nx.reshape({:auto})
-      |> Nx.as_type(:f64)
 
     values =
       Nx.stack(Enum.reverse(values))
       |> Nx.reshape({:auto, n_weak_learner_classes})
-      |> Nx.as_type(:f64)
 
     nodes_offset =
       Nx.iota({1, num_trees}, type: :s64)
@@ -253,9 +249,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
       |> Nx.reshape({:auto})
 
     {indices, _} =
-      while {tree_nodes = indices,
-             {features, lefts = Nx.as_type(lefts, :s64), rights = Nx.as_type(rights, :s64),
-              thresholds, nodes_offset, x}},
+      while {tree_nodes = indices, {features, lefts, rights, thresholds, nodes_offset, x}},
             _ <- 1..max_tree_depth,
             unroll: unroll do
         feature_nodes = Nx.take(features, tree_nodes) |> Nx.reshape({:auto, num_trees})

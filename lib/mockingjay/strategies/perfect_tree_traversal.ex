@@ -78,13 +78,11 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     thresholds =
       Nx.stack(Enum.reverse(thresholds))
       |> Nx.reshape({num_trees, @factor ** max_tree_depth - 1})
-      |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
     # shape of {num_trees, 2 ** max_tree_depth}
     values =
       Nx.stack(Enum.reverse(values))
       |> Nx.reshape({:auto, n_weak_learner_classes})
-      |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
     root_features =
       features[[.., 0]]
@@ -93,7 +91,6 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     root_thresholds =
       thresholds[[.., 0]]
       |> Nx.flatten()
-      |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
     {features, thresholds} =
       Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
@@ -107,7 +104,6 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
         b =
           thresholds[[.., start..stop]]
           |> Nx.flatten()
-          |> then(&Nx.as_type(&1, Nx.Type.to_floating(Nx.type(&1))))
 
         {[n | all_nodes], [b | all_biases]}
       end)
@@ -159,26 +155,44 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
 
   @impl true
   deftransform forward(x, opts \\ []) do
-    prev_indices =
-      x
-      |> Nx.take(opts[:root_features], axis: 1)
-      |> opts[:condition].(opts[:root_thresholds])
-      |> Nx.add(opts[:indices])
-      |> Nx.reshape({:auto})
+    opts =
+      Keyword.validate!(opts, [
+        :custom_forward,
+        :root_features,
+        :root_thresholds,
+        :condition,
+        :indices,
+        :num_trees,
+        :n_classes,
+        :values
+      ])
 
-    prev_indices =
-      Enum.zip_reduce([opts[:features], opts[:thresholds]], prev_indices, fn elems, acc ->
-        {nodes, biases} = elems |> List.to_tuple()
-        gather_indices = Nx.take(nodes, acc) |> Nx.reshape({:auto, opts[:num_trees]})
-        features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
+    case opts[:custom_forward] do
+      value when value != nil ->
+        opts[:custom_forward].(x, opts)
 
-        acc
-        |> Nx.multiply(@factor)
-        |> Nx.add(opts[:condition].(features, Nx.take(biases, acc)))
-      end)
+      _ ->
+        prev_indices =
+          x
+          |> Nx.take(opts[:root_features], axis: 1)
+          |> opts[:condition].(opts[:root_thresholds])
+          |> Nx.add(opts[:indices])
+          |> Nx.reshape({:auto})
 
-    Nx.take(opts[:values], prev_indices)
-    |> Nx.reshape({:auto, opts[:num_trees], opts[:n_classes]})
+        prev_indices =
+          Enum.zip_reduce([opts[:features], opts[:thresholds]], prev_indices, fn elems, acc ->
+            {nodes, biases} = elems |> List.to_tuple()
+            gather_indices = Nx.take(nodes, acc) |> Nx.reshape({:auto, opts[:num_trees]})
+            features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
+
+            acc
+            |> Nx.multiply(@factor)
+            |> Nx.add(opts[:condition].(features, Nx.take(biases, acc)))
+          end)
+
+        Nx.take(opts[:values], prev_indices)
+        |> Nx.reshape({:auto, opts[:num_trees], opts[:n_classes]})
+    end
   end
 
   @impl true

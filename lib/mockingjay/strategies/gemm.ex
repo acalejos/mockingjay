@@ -246,8 +246,7 @@ defmodule Mockingjay.Strategies.GEMM do
 
     a_zeros = Nx.broadcast(0, {n_trees, max_decision_nodes, num_features})
 
-    b_zeros =
-      Nx.slice_along_axis(a_zeros, 0, 1, axis: -1) |> Nx.as_type(:f64) |> Nx.squeeze(axes: [-1])
+    b_zeros = Nx.slice_along_axis(a_zeros, 0, 1, axis: -1) |> Nx.squeeze(axes: [-1])
 
     a = Nx.indexed_put(a_zeros, a_indices, a_updates)
 
@@ -318,8 +317,7 @@ defmodule Mockingjay.Strategies.GEMM do
 
     e_updates = Nx.tensor(updates_list)
 
-    e_zero =
-      Nx.broadcast(0, {n_trees, n_weak_learner_classes, max_leaf_nodes}) |> Nx.as_type(:f64)
+    e_zero = Nx.broadcast(0, {n_trees, n_weak_learner_classes, max_leaf_nodes})
 
     e = Nx.indexed_put(e_zero, e_indices, e_updates)
 
