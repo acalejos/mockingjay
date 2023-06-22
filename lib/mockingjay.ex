@@ -41,13 +41,11 @@ defmodule Mockingjay do
   * `:reorder_trees` - whether to reorder the trees in the model to optimize inference accuracy. Defaults to `true`. This assumes
   that trees are ordere such that they classify classes in order 0..n then repeat (e.g. a cyclic class prediction). If this is not
   the case, set this to `false` and implement custom ordering in the DecisionTree protocol implementation.
-  * `:forward` - the forward function to use. Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t().
+  * `:forward` - the forward function to use. A function that takes a Nx.Container.t() and returns a Nx.Container.t().
   If none is specified, the best option will be chosen based on the output type of the model.
-  * `:aggregate` - The aggregation function to use. Builtin options are `:none`, `:mean`, `:sum`, `:max`, and `:min`.
-  Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t(). If none is specified,
+  * `:aggregate` - The aggregation function to use. A function that takes a Nx.Container.t() and returns a Nx.Container.t(). If none is specified,
   the best option will be chosen based on the output type of the model.
-  * `:post_transform` - the post transform to use. Builtin options are `:none`, `:softmax`, `:sigmoid`,
-  or `:log_softmax`, and `:linear`. Can also be a function that takes a Nx.Container.t() and returns a Nx.Container.t().
+  * `:post_transform` - the post transform to use. A function that takes a Nx.Container.t() and returns a Nx.Container.t().
   If none is specified, the best option will be chosen based on the output type of the model.
   """
   def convert(data, opts \\ []) do

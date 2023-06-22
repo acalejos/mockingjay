@@ -112,6 +112,9 @@ defmodule Mockingjay.Tree do
         }
 
   # TO-DO: make TCOptimizable
+  @doc """
+  Returns tree nodes as a list in DFS order.
+  """
   def dfs(root) do
     _dfs(root, [])
   end
