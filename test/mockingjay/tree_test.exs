@@ -1,5 +1,6 @@
 defmodule Mockingjay.TreeTest do
   use ExUnit.Case, async: true
+
   alias Mockingjay.Tree
 
   setup do
@@ -60,14 +61,14 @@ defmodule Mockingjay.TreeTest do
   test "bfs", context do
     assert Tree.bfs(context.tree) |> Enum.map(& &1.value) == [
              %{feature: 2, threshold: 3},
-             %{feature: 1, threshold: 5},
              %{feature: 0, threshold: 1.2},
-             10,
-             %{feature: 3, threshold: 3},
-             30,
+             %{feature: 1, threshold: 5},
              20,
-             40,
-             50
+             30,
+             %{feature: 3, threshold: 3},
+             10,
+             50,
+             40
            ]
   end
 
@@ -78,8 +79,8 @@ defmodule Mockingjay.TreeTest do
   test "get decision values", context do
     assert Tree.get_decision_values(context.tree) == [
              %{feature: 2, threshold: 3},
-             %{feature: 1, threshold: 5},
              %{feature: 0, threshold: 1.2},
+             %{feature: 1, threshold: 5},
              %{feature: 3, threshold: 3}
            ]
   end

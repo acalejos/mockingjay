@@ -30,7 +30,11 @@ defmodule Mockingjay.Strategies.GEMM do
     # Number of classes each weak learner can predict
     # We infer from the shape of a leaf's :value key
     n_weak_learner_classes =
-      case trees |> hd |> Tree.get_decision_values() |> hd do
+      trees
+      |> hd()
+      |> Tree.get_decision_values()
+      |> hd()
+      |> case do
         value when is_list(value) ->
           length(value)
 
@@ -89,7 +93,7 @@ defmodule Mockingjay.Strategies.GEMM do
   end
 
   @impl true
-  def forward(x, opts \\ []) do
+  deftransform forward(x, opts \\ []) do
     opts =
       Keyword.validate!(opts, [
         :mat_A,
@@ -105,8 +109,10 @@ defmodule Mockingjay.Strategies.GEMM do
         :custom_forward
       ])
 
-    if opts[:custom_forward] do
-      opts[:custom_forward].(x)
+    custom_forward = opts[:custom_forward]
+
+    if is_function(custom_forward, 1) do
+      custom_forward.(x)
     else
       _forward(x, opts)
     end
@@ -151,7 +157,7 @@ defmodule Mockingjay.Strategies.GEMM do
   end
 
   @impl true
-  def aggregate(x, opts \\ []) do
+  deftransform aggregate(x, opts \\ []) do
     opts = Keyword.validate!(opts, [:n_classes, :n_trees, :custom_aggregate])
 
     if opts[:custom_aggregate] do
@@ -181,14 +187,17 @@ defmodule Mockingjay.Strategies.GEMM do
   end
 
   @impl true
-  def post_transform(x, opts \\ []) do
+  deftransform post_transform(x, opts \\ []) do
     opts = Keyword.validate!(opts, [:custom_post_transform, :n_classes])
 
-    if opts[:custom_post_transform] do
-      opts[:custom_post_transform].(x)
+    custom_post_transform = opts[:custom_post_transform]
+
+    if is_function(custom_post_transform, 1) do
+      custom_post_transform.(x)
     else
       transform =
-        Mockingjay.Strategy.infer_post_transform(opts[:n_classes])
+        opts[:n_classes]
+        |> Mockingjay.Strategy.infer_post_transform()
         |> Mockingjay.Strategy.post_transform_to_func()
 
       transform.(x)
@@ -211,7 +220,7 @@ defmodule Mockingjay.Strategies.GEMM do
     end
   end
 
-  deftransformp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
+  defnp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
     x
     |> Nx.squeeze()
     |> Nx.transpose()
@@ -219,7 +228,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.sum(axes: [2])
   end
 
-  deftransformp _aggregate(x) do
+  defnp _aggregate(x) do
     x
     |> Nx.sum(axes: [0])
     |> Nx.transpose()

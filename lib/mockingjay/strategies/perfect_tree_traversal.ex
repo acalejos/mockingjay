@@ -28,7 +28,11 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     # Number of classes each weak learner can predict
     # We infer from the shape of a leaf's :value key
     n_weak_learner_classes =
-      case trees |> hd |> Tree.get_decision_values() |> hd do
+      trees
+      |> hd()
+      |> Tree.get_decision_values()
+      |> hd()
+      |> case do
         value when is_list(value) ->
           length(value)
 
@@ -36,74 +40,72 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
           1
       end
 
+    [h | t] = trees
+
     max_tree_depth =
-      Enum.reduce(trees, 0, fn tree, acc ->
+      Enum.reduce(t, Tree.depth(h), fn tree, acc ->
         max(acc, Tree.depth(tree))
       end)
 
-    perfect_trees = trees |> Enum.map(&make_tree_perfect(&1, 0, max_tree_depth))
+    perfect_trees = Enum.map(trees, &make_tree_perfect(&1, 0, max_tree_depth))
 
-    {features, thresholds, values} =
-      perfect_trees
-      |> Enum.reduce({[], [], []}, fn tree, {all_features, all_thresholds, all_values} ->
+    {features, tt_tv} =
+      Enum.map(perfect_trees, fn tree ->
         {tf, tt, tv} =
-          Enum.reduce(Tree.bfs(tree), {[], [], []}, fn node,
-                                                       {tree_features, tree_thresholds,
-                                                        tree_values} ->
-            case node do
-              %Tree{left: nil, right: nil} ->
-                tree_values = [[node.value] | tree_values]
-                {tree_features, tree_thresholds, tree_values}
+          Enum.reduce(Tree.bfs(tree), {[], [], []}, fn
+            node, {tree_features, tree_thresholds, tree_values} ->
+              case node do
+                %Tree{left: nil, right: nil} ->
+                  tree_values = [[node.value] | tree_values]
+                  {tree_features, tree_thresholds, tree_values}
 
-              %Tree{left: _left, right: _right} ->
-                tree_features = [node.value.feature | tree_features]
-                tree_thresholds = [node.value.threshold | tree_thresholds]
-                {tree_features, tree_thresholds, tree_values}
-            end
+                %Tree{left: _left, right: _right} ->
+                  tree_features = [node.value.feature | tree_features]
+                  tree_thresholds = [node.value.threshold | tree_thresholds]
+                  {tree_features, tree_thresholds, tree_values}
+              end
           end)
 
-        tf = Nx.tensor(Enum.reverse(tf))
-        tt = Nx.tensor(Enum.reverse(tt))
-        tv = Nx.tensor(Enum.reverse(tv))
+        tf = Enum.reverse(tf)
+        tt = Enum.reverse(tt)
+        tv = Enum.reverse(tv)
 
-        {[tf | all_features], [tt | all_thresholds], [tv | all_values]}
+        {tf, {tt, tv}}
       end)
+      |> Enum.unzip()
+
+    {thresholds, values} = Enum.unzip(tt_tv)
 
     # shape of {num_trees, 2 ** max_tree_depth - 1}
     features =
-      Nx.stack(Enum.reverse(features))
+      features
+      |> Nx.tensor()
       |> Nx.reshape({num_trees, @factor ** max_tree_depth - 1})
 
     # shape of {num_trees, 2 ** max_tree_depth - 1}
     thresholds =
-      Nx.stack(Enum.reverse(thresholds))
+      thresholds
+      |> Nx.tensor()
       |> Nx.reshape({num_trees, @factor ** max_tree_depth - 1})
 
     # shape of {num_trees, 2 ** max_tree_depth}
     values =
-      Nx.stack(Enum.reverse(values))
+      values
+      |> Nx.tensor()
       |> Nx.reshape({:auto, n_weak_learner_classes})
 
-    root_features =
-      features[[.., 0]]
-      |> Nx.flatten()
+    root_features = Nx.flatten(features[[.., 0]])
 
-    root_thresholds =
-      thresholds[[.., 0]]
-      |> Nx.flatten()
+    root_thresholds = Nx.flatten(thresholds[[.., 0]])
 
     {features, thresholds} =
       Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
         start = @factor ** depth - 1
         stop = @factor ** (depth + 1) - 2
 
-        n =
-          features[[.., start..stop]]
-          |> Nx.flatten()
+        n = Nx.flatten(features[[.., start..stop]])
 
-        b =
-          thresholds[[.., start..stop]]
-          |> Nx.flatten()
+        b = Nx.flatten(thresholds[[.., start..stop]])
 
         {[n | all_nodes], [b | all_biases]}
       end)
