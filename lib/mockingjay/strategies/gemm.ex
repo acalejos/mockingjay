@@ -114,30 +114,11 @@ defmodule Mockingjay.Strategies.GEMM do
     if is_function(custom_forward, 1) do
       custom_forward.(x)
     else
-      _forward(x, opts)
+      _forward(x, opts[:mat_A], opts[:mat_B], opts[:mat_C], opts[:mat_D], opts[:mat_E], opts)
     end
   end
 
-  defn _forward(x, opts \\ []) do
-    opts =
-      keyword!(opts, [
-        :mat_A,
-        :mat_B,
-        :mat_C,
-        :mat_D,
-        :mat_E,
-        :condition,
-        :n_trees,
-        :max_decision_nodes,
-        :max_leaf_nodes,
-        :n_weak_learner_classes
-      ])
-
-    mat_A = opts[:mat_A]
-    mat_B = opts[:mat_B]
-    mat_C = opts[:mat_C]
-    mat_D = opts[:mat_D]
-    mat_E = opts[:mat_E]
+  defn _forward(x, mat_A, mat_B, mat_C, mat_D, mat_E, opts \\ []) do
     condition = opts[:condition]
     n_trees = opts[:n_trees]
     max_decision_nodes = opts[:max_decision_nodes]
