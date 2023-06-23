@@ -34,7 +34,7 @@ defmodule Mockingjay.MixProject do
     [
       {:nx, "~> 0.5"},
       {:axon, "~> 0.5"},
-      {:ex_doc, "~> 0.29.0", only: :docs}
+      {:ex_doc, "~> 0.29", only: :docs}
     ]
   end
 
