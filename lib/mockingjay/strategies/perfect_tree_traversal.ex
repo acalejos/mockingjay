@@ -164,6 +164,9 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
         :indices,
         :num_trees,
         :n_classes,
+        :thresholds,
+        :features,
+        :max_tree_depth,
         :values
       ])
 
