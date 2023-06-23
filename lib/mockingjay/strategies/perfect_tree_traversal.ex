@@ -99,7 +99,19 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     root_thresholds = Nx.flatten(thresholds[[.., 0]])
 
     {features, thresholds} =
-      _build_features_thresholds(features, thresholds, max_tree_depth: max_tree_depth)
+      Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
+        start = @factor ** depth - 1
+        stop = @factor ** (depth + 1) - 2
+
+        n = Nx.flatten(features[[.., start..stop]])
+
+        b = Nx.flatten(thresholds[[.., start..stop]])
+
+        {[n | all_nodes], [b | all_biases]}
+      end)
+
+    features = Enum.reverse(features) |> List.to_tuple()
+    thresholds = Enum.reverse(thresholds) |> List.to_tuple()
 
     nt = @factor * num_trees
 
@@ -143,25 +155,25 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     {forward_args, aggregate_args, post_transform_args}
   end
 
-  defnp _build_features_thresholds(features, thresholds, opts \\ []) do
-    _do_build_features_thresholds(features, thresholds, opts[:max_tree_depth])
-  end
+  # defnp _build_features_thresholds(features, thresholds, opts \\ []) do
+  #   _do_build_features_thresholds(features, thresholds, opts[:max_tree_depth])
+  # end
 
-  deftransformp _do_build_features_thresholds(features, thresholds, max_tree_depth) do
-    {features, thresholds} =
-      Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
-        start = @factor ** depth - 1
-        stop = @factor ** (depth + 1) - 2
+  # deftransformp _do_build_features_thresholds(features, thresholds, max_tree_depth) do
+  #   {features, thresholds} =
+  #     Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
+  #       start = @factor ** depth - 1
+  #       stop = @factor ** (depth + 1) - 2
 
-        n = Nx.flatten(features[[.., start..stop]])
+  #       n = Nx.flatten(features[[.., start..stop]])
 
-        b = Nx.flatten(thresholds[[.., start..stop]])
+  #       b = Nx.flatten(thresholds[[.., start..stop]])
 
-        {[n | all_nodes], [b | all_biases]}
-      end)
+  #       {[n | all_nodes], [b | all_biases]}
+  #     end)
 
-    {Enum.reverse(features) |> List.to_tuple(), Enum.reverse(thresholds) |> List.to_tuple()}
-  end
+  #   {Enum.reverse(features) |> List.to_tuple(), Enum.reverse(thresholds) |> List.to_tuple()}
+  # end
 
   @impl true
   deftransform forward(x, opts \\ []) do
