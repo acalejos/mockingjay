@@ -1,7 +1,8 @@
 defmodule Mockingjay.GEMMTest do
+  use ExUnit.Case, async: true
+
   alias Mockingjay.Tree
   alias Mockingjay.Strategies.GEMM
-  use ExUnit.Case, async: true
 
   # Test tree and matrix outputs from the Hummingbird paper
   setup do
@@ -45,81 +46,13 @@ defmodule Mockingjay.GEMMTest do
     }
   end
 
-  @tag :skip
-  test "A and B matrices", context do
-    expected_a =
-      Nx.tensor([
-        [0, 0, 1, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 1],
-        [0, 0, 1, 0, 0]
-      ])
-
-    expected_b =
-      Nx.tensor([
-        [0.5],
-        [2.0],
-        [5.5],
-        [2.4000000953674316]
-      ])
-
-    assert {a, b} =
-             GEMM.generate_matrices_AB(
-               context.trees,
-               context.num_features,
-               context.hidden_one_size
-             )
-
-    assert a == expected_a
-    assert b == expected_b
-  end
-
-  @tag :skip
-  test "C matrix", context do
-    assert GEMM.generate_matrix_C(context.trees, context.hidden_one_size, context.hidden_two_size) ==
-             Nx.tensor([
-               [
-                 [1, 1, 0, 0],
-                 [1, -1, 0, 0],
-                 [-1, 0, 1, 1],
-                 [-1, 0, 1, -1],
-                 [-1, 0, -1, 0]
-               ]
-             ])
-  end
-
-  @tag :skip
-  test "D and E matrices", context do
-    hidden_three_size = context.num_classes
-
-    assert {d, e} =
-             GEMM.generate_matrices_DE(context.trees, context.hidden_two_size, hidden_three_size)
-
-    assert d ==
-             Nx.tensor([
-               [2],
-               [1],
-               [2],
-               [1],
-               [0]
-             ])
-
-    assert e ==
-             Nx.tensor([
-               [
-                 [1, 0, 0, 1, 1],
-                 [0, 1, 1, 0, 0]
-               ]
-             ])
-  end
-
   test "convert", context do
     model = %Mockingjay.Model{
       trees: context.trees,
       num_classes: 1,
       num_features: 5,
       output_type: :classification,
-      condition: :lt
+      condition: :less
     }
 
     f = Mockingjay.convert(model)
