@@ -155,28 +155,8 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     {forward_args, aggregate_args, post_transform_args}
   end
 
-  # defnp _build_features_thresholds(features, thresholds, opts \\ []) do
-  #   _do_build_features_thresholds(features, thresholds, opts[:max_tree_depth])
-  # end
-
-  # deftransformp _do_build_features_thresholds(features, thresholds, max_tree_depth) do
-  #   {features, thresholds} =
-  #     Enum.reduce(1..(max_tree_depth - 1), {[], []}, fn depth, {all_nodes, all_biases} ->
-  #       start = @factor ** depth - 1
-  #       stop = @factor ** (depth + 1) - 2
-
-  #       n = Nx.flatten(features[[.., start..stop]])
-
-  #       b = Nx.flatten(thresholds[[.., start..stop]])
-
-  #       {[n | all_nodes], [b | all_biases]}
-  #     end)
-
-  #   {Enum.reverse(features) |> List.to_tuple(), Enum.reverse(thresholds) |> List.to_tuple()}
-  # end
-
   @impl true
-  deftransform forward(x, opts \\ []) do
+  def forward(x, opts \\ []) do
     opts =
       Keyword.validate!(opts, [
         :custom_forward,
@@ -197,7 +177,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
         opts[:custom_forward].(x, opts)
 
       _ ->
-        forward_n(
+        _forward(
           x,
           opts[:root_features],
           opts[:root_thresholds],
@@ -210,7 +190,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
     end
   end
 
-  defnp forward_n(
+  defnp _forward(
           x,
           root_features,
           root_thresholds,
