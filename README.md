@@ -1,7 +1,9 @@
 # Mockingjay
 
+[![Documentation](https://img.shields.io/badge/-Documentation-blueviolet)](https://hexdocs.pm/mockingjay)
+
 Implementation of Microsoft's [Hummingbird](https://github.com/microsoft/hummingbird) library for converting trained Decision Tree
-models into tensor computations. 
+models into tensor computations.
 
 ## How to Use
 
@@ -19,7 +21,7 @@ to generate an `Nx.Defn` prediction function that makes inferences. The output o
 ```elixir
 def deps do
   [
-    {:mockingjay, github: "acalejos/mockingjay", branch: "main"}
+    {:mockingjay, "~> 0.1"}
   ]
 end
 ```
