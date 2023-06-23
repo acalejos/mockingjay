@@ -220,7 +220,7 @@ defmodule Mockingjay.Strategies.GEMM do
     end
   end
 
-  defnp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
+  deftransformp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
     x
     |> Nx.squeeze()
     |> Nx.transpose()
@@ -228,7 +228,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.sum(axes: [2])
   end
 
-  defnp _aggregate(x) do
+  deftransformp _aggregate(x) do
     x
     |> Nx.sum(axes: [0])
     |> Nx.transpose()
