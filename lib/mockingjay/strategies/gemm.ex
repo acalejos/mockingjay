@@ -9,7 +9,7 @@ defmodule Mockingjay.Strategies.GEMM do
 
   @impl true
   def init(ensemble, opts \\ []) do
-    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform, reorder_trees: true])
+    opts = Keyword.validate!(opts, reorder_trees: true)
     trees = DecisionTree.trees(ensemble)
 
     num_features = DecisionTree.num_features(ensemble)
@@ -54,73 +54,48 @@ defmodule Mockingjay.Strategies.GEMM do
     mat_C = generate_matrix_C(trees, max_decision_nodes, max_leaf_nodes)
     {mat_D, mat_E} = generate_matrices_DE(trees, max_leaf_nodes, n_weak_learner_classes)
 
-    post_transform_args =
-      if opts[:post_transform] do
-        [custom_post_transform: opts[:post_transform]]
-      else
-        [n_classes: n_classes]
-      end
+    arg = %{
+      mat_A: mat_A,
+      mat_B: mat_B,
+      mat_C: mat_C,
+      mat_D: mat_D,
+      mat_E: mat_E
+    }
 
-    aggregate_args =
-      if opts[:aggregate] do
-        [custom_aggregate: opts[:aggregate]]
-      else
-        [
-          n_classes: n_classes,
-          n_trees: n_trees
-        ]
-      end
+    opts = [
+      condition: Mockingjay.Strategy.cond_to_fun(condition),
+      n_trees: n_trees,
+      max_decision_nodes: max_decision_nodes,
+      max_leaf_nodes: max_leaf_nodes,
+      n_weak_learner_classes: n_weak_learner_classes,
+      n_classes: n_classes
+    ]
 
-    forward_args =
-      if opts[:forward] do
-        [custom_forward: opts[:forward]]
-      else
-        [
-          mat_A: mat_A,
-          mat_B: mat_B,
-          mat_C: mat_C,
-          mat_D: mat_D,
-          mat_E: mat_E,
-          condition: Mockingjay.Strategy.cond_to_fun(condition),
-          n_trees: n_trees,
-          max_decision_nodes: max_decision_nodes,
-          max_leaf_nodes: max_leaf_nodes,
-          n_weak_learner_classes: n_weak_learner_classes
-        ]
-      end
-
-    {forward_args, aggregate_args, post_transform_args}
+    {arg, opts}
   end
 
   @impl true
-  deftransform forward(x, opts \\ []) do
+  deftransform forward(x, {arg, opts}) do
     opts =
       Keyword.validate!(opts, [
-        :mat_A,
-        :mat_B,
-        :mat_C,
-        :mat_D,
-        :mat_E,
         :condition,
         :n_trees,
+        :n_classes,
         :max_decision_nodes,
         :max_leaf_nodes,
         :n_weak_learner_classes,
         :custom_forward
       ])
 
-    custom_forward = opts[:custom_forward]
-
-    if is_function(custom_forward, 1) do
-      custom_forward.(x)
-    else
-      _forward(x, opts[:mat_A], opts[:mat_B], opts[:mat_C], opts[:mat_D], opts[:mat_E], opts)
-    end
+    _forward(x, arg, opts)
   end
 
-  defn _forward(x, mat_A, mat_B, mat_C, mat_D, mat_E, opts \\ []) do
+  defnp _forward(x, arg, opts \\ []) do
+    %{mat_A: mat_A, mat_B: mat_B, mat_C: mat_C, mat_D: mat_D, mat_E: mat_E} = arg
+
     condition = opts[:condition]
     n_trees = opts[:n_trees]
+    n_classes = opts[:n_classes]
     max_decision_nodes = opts[:max_decision_nodes]
     max_leaf_nodes = opts[:max_leaf_nodes]
     n_weak_learner_classes = opts[:n_weak_learner_classes]
@@ -135,54 +110,8 @@ defmodule Mockingjay.Strategies.GEMM do
     |> Nx.reshape({n_trees, max_leaf_nodes, :auto})
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
     |> Nx.reshape({n_trees, n_weak_learner_classes, :auto})
-  end
-
-  @impl true
-  deftransform aggregate(x, opts \\ []) do
-    opts = Keyword.validate!(opts, [:n_classes, :n_trees, :custom_aggregate])
-
-    if opts[:custom_aggregate] do
-      opts[:custom_aggregate].(x)
-    else
-      n_trees = opts[:n_trees]
-      n_classes = opts[:n_classes]
-
-      cond do
-        n_classes > 1 and n_trees > 1 ->
-          n_gbdt_classes = if n_classes > 2, do: n_classes, else: 1
-          n_trees_per_class = trunc(n_trees / n_gbdt_classes)
-
-          ensemble_aggregate(
-            x,
-            n_gbdt_classes,
-            n_trees_per_class
-          )
-
-        n_classes > 1 and n_trees == 1 ->
-          _aggregate(x)
-
-        true ->
-          raise "Unknown output type"
-      end
-    end
-  end
-
-  @impl true
-  deftransform post_transform(x, opts \\ []) do
-    opts = Keyword.validate!(opts, [:custom_post_transform, :n_classes])
-
-    custom_post_transform = opts[:custom_post_transform]
-
-    if is_function(custom_post_transform, 1) do
-      custom_post_transform.(x)
-    else
-      transform =
-        opts[:n_classes]
-        |> Mockingjay.Strategy.infer_post_transform()
-        |> Mockingjay.Strategy.post_transform_to_func()
-
-      transform.(x)
-    end
+    |> Nx.transpose()
+    |> Nx.reshape({:auto, n_trees, n_classes})
   end
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
@@ -199,20 +128,6 @@ defmodule Mockingjay.Strategies.GEMM do
       %{left: left, right: right} ->
         _get_leaf_left_depths(left, depth + 1) ++ _get_leaf_left_depths(right, depth)
     end
-  end
-
-  deftransformp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
-    x
-    |> Nx.squeeze()
-    |> Nx.transpose()
-    |> Nx.reshape({:auto, n_gbdt_classes, n_trees_per_class})
-    |> Nx.sum(axes: [2])
-  end
-
-  deftransformp _aggregate(x) do
-    x
-    |> Nx.sum(axes: [0])
-    |> Nx.transpose()
   end
 
   defp generate_matrices_AB(trees, num_features, max_decision_nodes) do

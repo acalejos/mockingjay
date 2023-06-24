@@ -7,7 +7,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
 
   @impl true
   def init(ensemble, opts \\ []) do
-    opts = Keyword.validate!(opts, [:forward, :aggregate, :post_transform, reorder_trees: true])
+    opts = Keyword.validate!(opts, reorder_trees: true)
 
     trees = DecisionTree.trees(ensemble)
 
@@ -115,42 +115,18 @@ defmodule Mockingjay.Strategies.TreeTraversal do
       Nx.iota({1, num_trees}, type: :s64)
       |> Nx.multiply(num_nodes)
 
-    forward_args =
-      if opts[:forward] do
-        [custom_forward: opts[:forward]]
-      else
-        [
-          nodes_offset: nodes_offset,
-          num_trees: num_trees,
-          max_tree_depth: max_tree_depth,
-          lefts: lefts,
-          rights: rights,
-          features: features,
-          thresholds: thresholds,
-          values: values,
-          condition: Mockingjay.Strategy.cond_to_fun(condition),
-          n_classes: n_weak_learner_classes
-        ]
-      end
-
-    post_transform_args =
-      if opts[:post_transform] do
-        [custom_post_transform: opts[:post_transform]]
-      else
-        [n_classes: n_classes]
-      end
-
-    aggregate_args =
-      if opts[:aggregate] do
-        [custom_aggregate: opts[:aggregate]]
-      else
-        [
-          n_classes: n_classes,
-          n_trees: num_trees
-        ]
-      end
-
-    {forward_args, aggregate_args, post_transform_args}
+    [
+      nodes_offset: nodes_offset,
+      num_trees: num_trees,
+      max_tree_depth: max_tree_depth,
+      lefts: lefts,
+      rights: rights,
+      features: features,
+      thresholds: thresholds,
+      values: values,
+      condition: Mockingjay.Strategy.cond_to_fun(condition),
+      n_classes: n_weak_learner_classes
+    ]
   end
 
   @impl true
@@ -171,67 +147,16 @@ defmodule Mockingjay.Strategies.TreeTraversal do
         unroll: false
       ])
 
-    case opts[:custom_forward] do
-      value when value != nil ->
-        opts[:custom_forward].(x, opts)
-
-      _ ->
-        _forward(
-          x,
-          opts[:features],
-          opts[:lefts],
-          opts[:rights],
-          opts[:thresholds],
-          opts[:nodes_offset],
-          opts[:values],
-          opts
-        )
-    end
-  end
-
-  @impl true
-  def aggregate(x, opts \\ []) do
-    opts = Keyword.validate!(opts, [:n_classes, :n_trees, :custom_aggregate])
-
-    if opts[:custom_aggregate] do
-      opts[:custom_aggregate].(x)
-    else
-      n_trees = opts[:n_trees]
-      n_classes = opts[:n_classes]
-
-      cond do
-        n_classes > 1 and n_trees > 1 ->
-          n_gbdt_classes = if n_classes > 2, do: n_classes, else: 1
-          n_trees_per_class = trunc(n_trees / n_gbdt_classes)
-
-          ensemble_aggregate(
-            x,
-            n_gbdt_classes,
-            n_trees_per_class
-          )
-
-        n_classes > 1 and n_trees == 1 ->
-          _aggregate(x)
-
-        true ->
-          raise "Unknown output type"
-      end
-    end
-  end
-
-  @impl true
-  def post_transform(x, opts \\ []) do
-    opts = Keyword.validate!(opts, [:custom_post_transform, :n_classes])
-
-    if opts[:custom_post_transform] do
-      opts[:custom_post_transform].(x)
-    else
-      transform =
-        Mockingjay.Strategy.infer_post_transform(opts[:n_classes])
-        |> Mockingjay.Strategy.post_transform_to_func()
-
-      transform.(x)
-    end
+    _forward(
+      x,
+      opts[:features],
+      opts[:lefts],
+      opts[:rights],
+      opts[:thresholds],
+      opts[:nodes_offset],
+      opts[:values],
+      opts
+    )
   end
 
   defn _forward(x, features, lefts, rights, thresholds, nodes_offset, values, opts \\ []) do
@@ -273,16 +198,5 @@ defmodule Mockingjay.Strategies.TreeTraversal do
     values
     |> Nx.take(indices)
     |> Nx.reshape({:auto, num_trees, n_classes})
-  end
-
-  deftransformp _aggregate(x) do
-    x
-    |> Nx.sum(axes: [1])
-  end
-
-  deftransformp ensemble_aggregate(x, n_gbdt_classes, n_trees_per_class) do
-    x
-    |> Nx.reshape({:auto, n_gbdt_classes, n_trees_per_class})
-    |> Nx.sum(axes: [2])
   end
 end

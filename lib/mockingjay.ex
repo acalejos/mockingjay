@@ -14,9 +14,9 @@ defmodule Mockingjay do
 
   ## Strategies
 
-  Mockingjay supports three strategies for compiling decision trees: `:gemm`, `:tree_traversal`, and `:perfect_tree_traversal`, or `:auto` to select
-  using heuristics. The `:auto` strategy will select the best strategy based on the depth of the tree according to the
-  following rules:
+  Mockingjay supports three strategies for compiling decision trees: `:gemm`, `:tree_traversal`, and `:perfect_tree_traversal`,
+  or `:auto` to select using heuristics. The `:auto` strategy will select the best strategy based on the depth of the tree
+  according to the following rules:
 
     * GEMM: Shallow Trees (<=3)
 
@@ -24,20 +24,6 @@ defmodule Mockingjay do
 
     * TreeTraversal: Tall trees unfit for PerfectTreeTraversal (depth > 10)
 
-  ## Conversion Pipeline
-
-  `Mockingjay` compiles a model using a pipeline composed of three functions, all of which take a Nx.Container.t() and returns a Nx.Container.t().
-  These functions will be determined by the strategy chosen, but can also be specified manually. Practically speaking,
-  you should not need to specify these manually (especially the forward function). The functions are:
-
-    * `forward` - The forward function -- determined by strategy
-
-    * `aggregate` - Aggregates the output of the forward function -- determined by strategy and output type (ensemble or single tree)
-
-    * `post_transform` - Applies a post transform to the output of the aggregate function -- determined by strategy and output type (classification or regression)
-
-  The `convert` function returns a `defn` function that takes a Nx.Container.t() and returns a Nx.Container.t(), running
-  the input through the pipeline (forward -> aggregate -> post_transform).
   """
 
   @doc """
@@ -46,17 +32,11 @@ defmodule Mockingjay do
   ## Options
 
     * `:reorder_trees` - whether to reorder the trees in the model to optimize inference accuracy. Defaults to `true`. This assumes
-    that trees are ordere such that they classify classes in order 0..n then repeat (e.g. a cyclic class prediction). If this is not
-    the case, set this to `false` and implement custom ordering in the DecisionTree protocol implementation.
+      that trees are ordered such that they classify classes in order 0..n then repeat (e.g. a cyclic class prediction). If this is not
+      the case, set this to `false` and implement custom ordering in the DecisionTree protocol implementation.
 
-    * `:forward` - the forward function to use. A function that takes a Nx.Container.t() and returns a Nx.Container.t().
-    If none is specified, the best option will be chosen based on the output type of the model.
-
-    * `:aggregate` - The aggregation function to use. A function that takes a Nx.Container.t() and returns a Nx.Container.t(). If none is specified,
-    the best option will be chosen based on the output type of the model.
-
-    * `:post_transform` - the post transform to use. A function that takes a Nx.Container.t() and returns a Nx.Container.t().
-    If none is specified, the best option will be chosen based on the output type of the model.
+    * `:post_transform` - the post transform to use. Must be one of :none, :softmax, :sigmoid, :log_softmax, :log_sigmoid or :linear,
+      or a custom function that receives the aggregation results. Defaults to sigmoid if n_classes <= 2, otherwise softmax.
   """
   def convert(data, opts \\ []) do
     {strategy, opts} = Keyword.pop(opts, :strategy, :auto)
@@ -76,16 +56,64 @@ defmodule Mockingjay do
           Mockingjay.Strategy.get_strategy(data, opts)
 
         _ ->
-          raise ArgumentError, "strategy must be one of :gemm, :tree_traversal, :perfect_tree_traversal, or :auto"
+          raise ArgumentError,
+                "strategy must be one of :gemm, :tree_traversal, :perfect_tree_traversal, or :auto"
       end
 
-    {forward_opts, aggregate_opts, post_transform_opts} = strategy.init(data, opts)
+    {post_transform, opts} = Keyword.pop(opts, :post_transform, nil)
+    state = strategy.init(data, opts)
 
     fn data ->
-      data
-      |> strategy.forward(forward_opts)
-      |> strategy.aggregate(aggregate_opts)
-      |> strategy.post_transform(post_transform_opts)
+      result = strategy.forward(data, state)
+      {_, n_trees, n_classes} = Nx.shape(result)
+
+      result
+      |> aggregate(n_trees, n_classes)
+      |> post_transform(post_transform, n_classes)
     end
+  end
+
+  defp aggregate(x, n_trees, n_classes) do
+    cond do
+      n_classes > 1 and n_trees > 1 ->
+        n_gbdt_classes = if n_classes > 2, do: n_classes, else: 1
+        n_trees_per_class = trunc(n_trees / n_gbdt_classes)
+
+        x
+        |> Nx.reshape({:auto, n_gbdt_classes, n_trees_per_class})
+        |> Nx.sum(axes: [2])
+
+      n_classes > 1 and n_trees == 1 ->
+        Nx.squeeze(x, axes: [1])
+
+      true ->
+        raise "unknown output type from strategy"
+    end
+  end
+
+  defp post_transform(x, post_transform, n_classes) do
+    fun = post_transform_to_fun(post_transform || infer_post_transform(n_classes))
+    fun.(x)
+  end
+
+  defp infer_post_transform(n_classes) when n_classes <= 2, do: :sigmoid
+  defp infer_post_transform(_), do: :softmax
+
+  defp post_transform_to_fun(:none) do
+    &Function.identity/1
+  end
+
+  defp post_transform_to_fun(post_transform)
+       when post_transform in [:softmax, :linear, :sigmoid, :log_softmax, :log_sigmoid] do
+    &apply(Axon.Activations, post_transform, [&1])
+  end
+
+  defp post_transform_to_fun(post_transform) when is_function(post_transform, 1) do
+    post_transform
+  end
+
+  defp post_transform_to_fun(post_transform) do
+    raise ArgumentError,
+          "invalid post_transform: #{inspect(post_transform)} -- must be one of :none, :softmax, :sigmoid, :log_softmax, :log_sigmoid or :linear -- or a custom function of arity 1"
   end
 end
