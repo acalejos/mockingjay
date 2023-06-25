@@ -127,7 +127,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       root_thresholds: root_thresholds,
       values: values,
       condition: Mockingjay.Strategy.cond_to_fun(condition),
-      n_classes: n_weak_learner_classes
+      n_classes: n_classes
     ]
   end
 
