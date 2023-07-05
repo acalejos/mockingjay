@@ -115,51 +115,49 @@ defmodule Mockingjay.Strategies.TreeTraversal do
       Nx.iota({1, num_trees}, type: :s64)
       |> Nx.multiply(num_nodes)
 
-    [
-      nodes_offset: nodes_offset,
-      num_trees: num_trees,
-      max_tree_depth: max_tree_depth,
+    arg = %{
+      features: features,
       lefts: lefts,
       rights: rights,
-      features: features,
       thresholds: thresholds,
-      values: values,
+      nodes_offset: nodes_offset,
+      values: values
+    }
+
+    opts = [
+      num_trees: num_trees,
+      max_tree_depth: max_tree_depth,
       condition: Mockingjay.Strategy.cond_to_fun(condition),
       n_classes: n_classes
     ]
+
+    {arg, opts}
   end
 
   @impl true
-  deftransform forward(x, opts \\ []) do
+  deftransform forward(x, {arg, opts}) do
     opts =
       Keyword.validate!(opts, [
-        :custom_forward,
         :max_tree_depth,
         :num_trees,
         :n_classes,
-        :nodes_offset,
-        :lefts,
-        :rights,
-        :features,
-        :thresholds,
-        :values,
         :condition,
         unroll: false
       ])
 
-    _forward(
-      x,
-      opts[:features],
-      opts[:lefts],
-      opts[:rights],
-      opts[:thresholds],
-      opts[:nodes_offset],
-      opts[:values],
-      opts
-    )
+    _forward(x, arg, opts)
   end
 
-  defn _forward(x, features, lefts, rights, thresholds, nodes_offset, values, opts \\ []) do
+  defnp _forward(x, arg, opts \\ []) do
+    %{
+      features: features,
+      lefts: lefts,
+      rights: rights,
+      thresholds: thresholds,
+      nodes_offset: nodes_offset,
+      values: values
+    } = arg
+
     max_tree_depth = opts[:max_tree_depth]
     num_trees = opts[:num_trees]
     n_classes = opts[:n_classes]
@@ -173,8 +171,10 @@ defmodule Mockingjay.Strategies.TreeTraversal do
       |> Nx.broadcast({batch_size, num_trees})
       |> Nx.reshape({:auto})
 
-    {indices, _} =
-      while {tree_nodes = indices, {features, lefts, rights, thresholds, nodes_offset, x}},
+    # Values isn't used in the loop but this transfers it to the correct backend
+    {indices, {_, _, _, _, _, _, values}} =
+      while {tree_nodes = indices,
+             {features, lefts, rights, thresholds, nodes_offset, x, values}},
             _ <- 1..max_tree_depth,
             unroll: unroll do
         feature_nodes = Nx.take(features, tree_nodes) |> Nx.reshape({:auto, num_trees})
@@ -192,7 +192,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
           |> Nx.add(nodes_offset)
           |> Nx.reshape({:auto})
 
-        {result, {features, lefts, rights, thresholds, nodes_offset, x}}
+        {result, {features, lefts, rights, thresholds, nodes_offset, x, values}}
       end
 
     values

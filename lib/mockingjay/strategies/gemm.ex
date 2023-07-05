@@ -83,8 +83,7 @@ defmodule Mockingjay.Strategies.GEMM do
         :n_classes,
         :max_decision_nodes,
         :max_leaf_nodes,
-        :n_weak_learner_classes,
-        :custom_forward
+        :n_weak_learner_classes
       ])
 
     _forward(x, arg, opts)
