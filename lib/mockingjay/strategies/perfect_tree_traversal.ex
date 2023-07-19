@@ -167,7 +167,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       |> Nx.reshape({:auto})
       |> forward_reduce_features(x, features, thresholds, opts)
 
-    Nx.take(values |> print_value(), prev_indices)
+    Nx.take(values, prev_indices)
     |> Nx.reshape({:auto, opts[:num_trees], opts[:n_classes]})
   end
 
@@ -183,15 +183,13 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
   end
 
   defnp _inner_reduce(x, nodes, biases, acc, opts \\ []) do
-    gather_indices =
-      nodes |> print_value() |> Nx.take(acc) |> Nx.reshape({:auto, opts[:num_trees]})
+    gather_indices = nodes |> Nx.take(acc) |> Nx.reshape({:auto, opts[:num_trees]})
 
     features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
 
     acc
-    |> print_value()
     |> Nx.multiply(@factor)
-    |> Nx.add(opts[:condition].(features, Nx.take(biases |> print_value(), acc)))
+    |> Nx.add(opts[:condition].(features, Nx.take(biases, acc)))
   end
 
   defp make_tree_perfect(tree, current_depth, max_depth) do
