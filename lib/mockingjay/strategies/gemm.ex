@@ -32,11 +32,11 @@ defmodule Mockingjay.Strategies.GEMM do
     n_weak_learner_classes =
       trees
       |> hd()
-      |> Tree.get_decision_values()
+      |> Tree.get_leaf_nodes()
       |> hd()
       |> case do
-        value when is_list(value) ->
-          length(value)
+        value when is_list(value.value) ->
+          length(value.value)
 
         _value ->
           1
@@ -48,7 +48,7 @@ defmodule Mockingjay.Strategies.GEMM do
          max(h2, length(Tree.get_leaf_nodes(tree)))}
       end)
 
-    n_trees = length(trees)
+    n_trees = length(trees) |> IO.inspect(label: "n_trees")
 
     {mat_A, mat_B} = generate_matrices_AB(trees, num_features, max_decision_nodes)
     mat_C = generate_matrix_C(trees, max_decision_nodes, max_leaf_nodes)
@@ -205,7 +205,13 @@ defmodule Mockingjay.Strategies.GEMM do
           if n_weak_learner_classes == 1 do
             {[index, 0, node_index], node.value}
           else
-            {[index, trunc(node.value), node_index], 1}
+            cat_value = node.value |> Nx.tensor() |> Nx.argmax() |> Nx.to_number()
+
+            {[
+               index,
+               cat_value,
+               node_index
+             ], 1}
           end
         end)
       end)
@@ -221,7 +227,7 @@ defmodule Mockingjay.Strategies.GEMM do
     d = Nx.indexed_put(d_zero, d_indices, d_updates)
 
     e_updates = Nx.tensor(updates_list)
-
+    IO.inspect(n_weak_learner_classes, label: "n_weak_learner_classes")
     e_zero = Nx.broadcast(0, {n_trees, n_weak_learner_classes, max_leaf_nodes})
 
     e = Nx.indexed_put(e_zero, e_indices, e_updates)

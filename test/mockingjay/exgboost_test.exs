@@ -45,19 +45,21 @@ defmodule EXGBoostTest do
     assert DecisionTree.num_features(booster) == 4
   end
 
-  test "compiles", context do
+  test "converts", context do
     booster =
       EXGBoost.train(context.x_train, context.y_train, num_class: 3, objective: :multi_softprob)
 
-    gemm_predict = EXGBoost.compile(booster, strategy: :gemm)
-    tt_predict = EXGBoost.compile(booster, strategy: :tree_traversal)
-    ptt_predict = EXGBoost.compile(booster, strategy: :perfect_tree_traversal)
-    auto_predict = EXGBoost.compile(booster, strategy: :auto)
+    gemm_predict = Mockingjay.convert(booster, strategy: :gemm)
+    tt_predict = Mockingjay.convert(booster, strategy: :tree_traversal)
+    ptt_predict = Mockingjay.convert(booster, strategy: :perfect_tree_traversal)
+    auto_predict = Mockingjay.convert(booster, strategy: :auto)
     # host_jit = EXLA.jit(compiled_predict)
 
     preds1 =
       EXGBoost.predict(booster, context.x_test)
       |> Nx.argmax(axis: -1)
+
+    context.x_test |> IO.inspect(label: "context.x_test")
 
     preds2 = gemm_predict.(context.x_test) |> Nx.argmax(axis: -1)
     preds3 = tt_predict.(context.x_test) |> Nx.argmax(axis: -1)
@@ -88,5 +90,6 @@ defmodule EXGBoostTest do
     assert tt_accuracy >= base_acc
     assert ptt_accuracy >= base_acc
     assert auto_accuracy >= base_acc
+    assert false
   end
 end
