@@ -32,9 +32,13 @@ defmodule Mockingjay.MixProject do
 
   defp deps do
     [
-      {:nx, "~> 0.5"},
+      {:nx, "~> 0.5", override: true},
       {:axon, "~> 0.5"},
-      {:ex_doc, "~> 0.29", only: :docs}
+      {:ex_doc, "~> 0.29", only: :docs},
+      # {:exgboost, github: "acalejos/exgboost", optional: true},
+      {:exgboost, path: "/Users/andres/Documents/exgboost", optional: true},
+      {:scidata, "~> 0.1.9", only: :test},
+      {:scholar, "~> 0.1", only: :test}
     ]
   end
 

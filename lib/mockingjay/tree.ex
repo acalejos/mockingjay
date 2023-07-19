@@ -62,25 +62,54 @@ defmodule Mockingjay.Tree do
   def from_map(%__MODULE__{} = t), do: t
 
   def from_map(%{} = map) do
+    %{
+      left: %{
+        left: %{
+          value: [
+            1.0996503496504055,
+            0.0900349650349933,
+            -0.2421328671328476,
+            -0.4737762237762082,
+            -0.47377622377620826
+          ]
+        },
+        right: %{
+          value: [
+            0.18779904306214146,
+            0.4449760765549639,
+            0.26555023923438986,
+            -0.44019138755987713,
+            -0.45813397129193495
+          ]
+        },
+        value: %{feature: 78, threshold: 4.637722969055176}
+      },
+      right: %{
+        left: %{
+          value: [1.1875, -0.3125000000000001, -0.2500000000000001, -0.3125, -0.3125]
+        },
+        right: %{
+          value: [
+            -0.08333333333333333,
+            0.4999999999999997,
+            0.0833333333333333,
+            -0.24999999999999994,
+            -0.25
+          ]
+        },
+        value: %{feature: 78, threshold: 4.637722969055176}
+      },
+      value: %{feature: 122, threshold: -1.053920030593872}
+    }
+
     case map do
-      %{left: nil, right: nil, value: value} when is_number(value) ->
-        %__MODULE__{
-          id: make_ref(),
-          left: nil,
-          right: nil,
-          value: value
-        }
-
-      %{value: value} when is_number(value) ->
-        %__MODULE__{
-          id: make_ref(),
-          left: nil,
-          right: nil,
-          value: value
-        }
-
       %{left: nil, right: nil, value: value} ->
-        raise ArgumentError, "Leaf nodes must have a numeric value. Got: #{inspect(value)}"
+        %__MODULE__{
+          id: make_ref(),
+          left: nil,
+          right: nil,
+          value: value
+        }
 
       %{left: left, right: right, value: %{threshold: threshold, feature: feature}}
       when is_number(threshold) and is_number(feature) ->
@@ -96,7 +125,12 @@ defmodule Mockingjay.Tree do
               "Non-leaf nodes must have a numeric threshold and feature. Got: #{inspect(map)}"
 
       %{value: value} ->
-        raise ArgumentError, "Leaf nodes must have a numeric value. Got: #{inspect(value)}"
+        %__MODULE__{
+          id: make_ref(),
+          left: nil,
+          right: nil,
+          value: value
+        }
 
       _ ->
         raise ArgumentError, "Invalid tree map: #{inspect(map)}"
