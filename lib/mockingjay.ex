@@ -12,6 +12,10 @@ defmodule Mockingjay do
   this protocol is implemented by `EXGBoost` in its `EXGBoost.Compile` module. This protocol is used to extract the trees from the model
   and to get the number of classes and features in the model.
 
+  ## Adapters
+  Mockingjay also provides adapters for `EXGBoost` and `Catboost` models. These adapters are used to implement the `Mockingjay.DecisionTree`
+  protocol for these models. See the `Mockingjay.Adapters` module for more information.
+
   ## Strategies
 
   Mockingjay supports three strategies for compiling decision trees: `:gemm`, `:tree_traversal`, and `:perfect_tree_traversal`,
@@ -76,11 +80,8 @@ defmodule Mockingjay do
   defp aggregate(x, n_trees, n_classes) do
     cond do
       n_classes > 1 and n_trees > 1 ->
-        n_gbdt_classes = if n_classes > 2, do: n_classes, else: 1
-        n_trees_per_class = trunc(n_trees / n_gbdt_classes)
-
         x
-        |> Nx.reshape({:auto, n_gbdt_classes, n_trees_per_class})
+        |> Nx.reshape({:auto, n_classes, n_trees})
         |> Nx.sum(axes: [2])
 
       n_classes > 1 and n_trees == 1 ->

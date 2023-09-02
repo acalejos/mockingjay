@@ -117,59 +117,50 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
 
     indices = 0..(nt - 1)//2 |> Enum.into([]) |> Nx.tensor(type: :s64)
 
-    [
-      indices: indices,
-      num_trees: num_trees,
-      max_tree_depth: max_tree_depth,
-      features: features,
-      thresholds: thresholds,
+    arg = %{
       root_features: root_features,
       root_thresholds: root_thresholds,
+      features: features,
+      thresholds: thresholds,
       values: values,
+      indices: indices
+    }
+
+    opts = [
+      num_trees: num_trees,
+      max_tree_depth: max_tree_depth,
       condition: Mockingjay.Strategy.cond_to_fun(condition),
       n_classes: n_classes
     ]
+
+    {arg, opts}
   end
 
   @impl true
-  def forward(x, opts \\ []) do
+  deftransform forward(x, {arg, opts}) do
     opts =
       Keyword.validate!(opts, [
-        :custom_forward,
-        :root_features,
-        :root_thresholds,
         :condition,
-        :indices,
         :num_trees,
         :n_classes,
-        :thresholds,
-        :features,
-        :max_tree_depth,
-        :values
+        :max_tree_depth
       ])
 
-    _forward(
-      x,
-      opts[:root_features],
-      opts[:root_thresholds],
-      opts[:features],
-      opts[:thresholds],
-      opts[:values],
-      opts[:indices],
-      Keyword.take(opts, [:num_trees, :condition, :n_classes])
-    )
+    _forward(x, arg, opts)
   end
 
-  defnp _forward(
-          x,
-          root_features,
-          root_thresholds,
-          features,
-          thresholds,
-          values,
-          indices,
-          opts \\ []
-        ) do
+  defnp _forward(x, arg, opts) do
+    %{
+      root_features: root_features,
+      root_thresholds: root_thresholds,
+      features: features,
+      thresholds: thresholds,
+      values: values,
+      indices: indices
+    } = arg
+
+    n_trees_per_class = div(opts[:num_trees], opts[:n_classes])
+
     prev_indices =
       x
       |> Nx.take(root_features, axis: 1)
@@ -179,7 +170,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       |> forward_reduce_features(x, features, thresholds, opts)
 
     Nx.take(values, prev_indices)
-    |> Nx.reshape({:auto, opts[:num_trees], opts[:n_classes]})
+    |> Nx.reshape({:auto, n_trees_per_class, opts[:n_classes]})
   end
 
   deftransformp forward_reduce_features(prev_indices, x, features, thresholds, opts \\ []) do
@@ -188,14 +179,19 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       Tuple.to_list(thresholds),
       prev_indices,
       fn nodes, biases, acc ->
-        gather_indices = nodes |> Nx.take(acc) |> Nx.reshape({:auto, opts[:num_trees]})
-        features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
-
-        acc
-        |> Nx.multiply(@factor)
-        |> Nx.add(opts[:condition].(features, Nx.take(biases, acc)))
+        _inner_reduce(x, nodes, biases, acc, opts)
       end
     )
+  end
+
+  defnp _inner_reduce(x, nodes, biases, acc, opts \\ []) do
+    gather_indices = nodes |> Nx.take(acc) |> Nx.reshape({:auto, opts[:num_trees]})
+
+    features = Nx.take_along_axis(x, gather_indices, axis: 1) |> Nx.reshape({:auto})
+
+    acc
+    |> Nx.multiply(@factor)
+    |> Nx.add(opts[:condition].(features, Nx.take(biases, acc)))
   end
 
   defp make_tree_perfect(tree, current_depth, max_depth) do

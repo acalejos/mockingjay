@@ -32,11 +32,11 @@ defmodule Mockingjay.Strategies.GEMM do
     n_weak_learner_classes =
       trees
       |> hd()
-      |> Tree.get_decision_values()
+      |> Tree.get_leaf_nodes()
       |> hd()
       |> case do
-        value when is_list(value) ->
-          length(value)
+        value when is_list(value.value) ->
+          length(value.value)
 
         _value ->
           1
@@ -83,8 +83,7 @@ defmodule Mockingjay.Strategies.GEMM do
         :n_classes,
         :max_decision_nodes,
         :max_leaf_nodes,
-        :n_weak_learner_classes,
-        :custom_forward
+        :n_weak_learner_classes
       ])
 
     _forward(x, arg, opts)
@@ -99,6 +98,7 @@ defmodule Mockingjay.Strategies.GEMM do
     max_decision_nodes = opts[:max_decision_nodes]
     max_leaf_nodes = opts[:max_leaf_nodes]
     n_weak_learner_classes = opts[:n_weak_learner_classes]
+    n_trees_per_class = div(n_trees, n_classes)
 
     mat_A
     |> Nx.dot([1], x, [1])
@@ -111,7 +111,7 @@ defmodule Mockingjay.Strategies.GEMM do
     |> then(&Nx.dot(mat_E, [2], [0], &1, [1], [0]))
     |> Nx.reshape({n_trees, n_weak_learner_classes, :auto})
     |> Nx.transpose()
-    |> Nx.reshape({:auto, n_trees, n_classes})
+    |> Nx.reshape({:auto, n_trees_per_class, n_classes})
   end
 
   # Leaves are ordered as DFS rather than BFS that internal nodes are
@@ -205,7 +205,13 @@ defmodule Mockingjay.Strategies.GEMM do
           if n_weak_learner_classes == 1 do
             {[index, 0, node_index], node.value}
           else
-            {[index, trunc(node.value), node_index], 1}
+            cat_value = node.value |> Nx.tensor() |> Nx.argmax() |> Nx.to_number()
+
+            {[
+               index,
+               cat_value,
+               node_index
+             ], 1}
           end
         end)
       end)
@@ -221,7 +227,6 @@ defmodule Mockingjay.Strategies.GEMM do
     d = Nx.indexed_put(d_zero, d_indices, d_updates)
 
     e_updates = Nx.tensor(updates_list)
-
     e_zero = Nx.broadcast(0, {n_trees, n_weak_learner_classes, max_leaf_nodes})
 
     e = Nx.indexed_put(e_zero, e_indices, e_updates)
