@@ -59,7 +59,7 @@ defmodule EXGBoostTest do
       EXGBoost.predict(booster, context.x_test)
       |> Nx.argmax(axis: -1)
 
-    context.x_test |> IO.inspect(label: "context.x_test")
+    context.x_test
 
     preds2 = gemm_predict.(context.x_test) |> Nx.argmax(axis: -1)
     preds3 = tt_predict.(context.x_test) |> Nx.argmax(axis: -1)
@@ -90,6 +90,5 @@ defmodule EXGBoostTest do
     assert tt_accuracy >= base_acc
     assert ptt_accuracy >= base_acc
     assert auto_accuracy >= base_acc
-    assert false
   end
 end

@@ -159,6 +159,8 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       indices: indices
     } = arg
 
+    n_trees_per_class = div(opts[:num_trees], opts[:n_classes])
+
     prev_indices =
       x
       |> Nx.take(root_features, axis: 1)
@@ -168,7 +170,7 @@ defmodule Mockingjay.Strategies.PerfectTreeTraversal do
       |> forward_reduce_features(x, features, thresholds, opts)
 
     Nx.take(values, prev_indices)
-    |> Nx.reshape({:auto, opts[:num_trees], opts[:n_classes]})
+    |> Nx.reshape({:auto, n_trees_per_class, opts[:n_classes]})
   end
 
   deftransformp forward_reduce_features(prev_indices, x, features, thresholds, opts \\ []) do

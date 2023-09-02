@@ -19,7 +19,7 @@ defmodule CatboostTest do
       trees = DecisionTree.trees(booster)
 
       assert is_list(trees)
-      assert is_struct(hd(trees) |> IO.inspect(label: "Tree"), Mockingjay.Tree)
+      assert is_struct(hd(trees)
       assert DecisionTree.num_classes(booster) == expected_num_class
       assert DecisionTree.num_features(booster) == expected_num_feature
     end
