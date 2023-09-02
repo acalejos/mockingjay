@@ -80,11 +80,8 @@ defmodule Mockingjay do
   defp aggregate(x, n_trees, n_classes) do
     cond do
       n_classes > 1 and n_trees > 1 ->
-        n_gbdt_classes = if n_classes > 2, do: n_classes, else: 1
-        n_trees_per_class = trunc(n_trees / n_gbdt_classes)
-
         x
-        |> Nx.reshape({:auto, n_gbdt_classes, n_trees_per_class})
+        |> Nx.reshape({:auto, n_classes, n_trees})
         |> Nx.sum(axes: [2])
 
       n_classes > 1 and n_trees == 1 ->

@@ -165,6 +165,7 @@ defmodule Mockingjay.Strategies.TreeTraversal do
     n_classes = opts[:n_classes]
     condition = opts[:condition]
     unroll = opts[:unroll]
+    n_trees_per_class = div(num_trees, n_classes)
 
     batch_size = Nx.axis_size(x, 0)
 
@@ -197,6 +198,6 @@ defmodule Mockingjay.Strategies.TreeTraversal do
 
     values
     |> Nx.take(indices)
-    |> Nx.reshape({:auto, num_trees, n_classes})
+    |> Nx.reshape({:auto, n_trees_per_class, n_classes})
   end
 end
